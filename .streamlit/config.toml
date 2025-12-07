@@ -1,0 +1,23 @@
+[theme]
+# Galaxy & AGN Explorer theme - Deep space with stellar accents
+primaryColor = "#FF6B9D"
+backgroundColor = "#0A0E1F"
+secondaryBackgroundColor = "#1a1f3a"
+textColor = "#E0E0E0"
+font = "sans serif"
+
+[server]
+headless = true
+port = 8501
+address = "localhost"
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 200
+
+[browser]
+serverAddress = "localhost"
+gatherUsageStats = false
+
+[client]
+showErrorDetails = false
+toolbarMode = "minimal"
