@@ -73,7 +73,7 @@ with col2:
         help="SDSS or DESI format spectrum"
     )
 
-if st.button("🔍 Fetch SDSS Spectrum", use_container_width=True):
+if st.button("🔍 Fetch SDSS Spectrum", width='stretch'):
     with st.spinner("Searching for SDSS spectrum..."):
         try:
             spectrum = fetch_sdss_spectrum_by_coords(ra, dec, radius=search_radius_spec)
@@ -267,7 +267,7 @@ if st.session_state.spectrum_data:
         height=500
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # Spectrum statistics
     col1, col2, col3, col4 = st.columns(4)
@@ -297,7 +297,7 @@ if st.session_state.spectrum_data:
         help="Choose which emission lines to fit"
     )
     
-    if st.button("⚡ Fit Selected Lines", use_container_width=True, type="primary"):
+    if st.button("⚡ Fit Selected Lines", width='stretch', type="primary"):
         with st.spinner("Fitting emission lines..."):
             try:
                 line_results = fit_multiple_lines(
@@ -335,7 +335,7 @@ if st.session_state.spectrum_data:
         
         if results_data:
             results_df = pd.DataFrame(results_data)
-            st.dataframe(results_df, use_container_width=True)
+            st.dataframe(results_df, width='stretch')
             
             # Export results
             csv = results_df.to_csv(index=False)

@@ -71,7 +71,7 @@ with col1:
         help="Enter object name (Simbad resolvable)"
     )
     
-    if st.button("🔍 Resolve Name", use_container_width=True):
+    if st.button("🔍 Resolve Name", width='stretch'):
         with st.spinner("Resolving object name..."):
             coords = resolve_object_to_coords(object_name)
             if coords:
@@ -98,7 +98,7 @@ with col2:
         format="%.6f"
     )
     
-    if st.button("📍 Use Coordinates", use_container_width=True):
+    if st.button("📍 Use Coordinates", width='stretch'):
         st.session_state.target_coords = (coord_ra, coord_dec)
         st.session_state.target_name = f"RA={coord_ra:.4f}, Dec={coord_dec:.4f}"
         st.success(f"✓ Coordinates set: RA={coord_ra:.6f}°, Dec={coord_dec:.6f}°")
@@ -137,7 +137,7 @@ if st.session_state.target_coords:
     with col5:
         query_2mass = st.checkbox("2MASS", value=False)
     
-    if st.button("🚀 Fetch Data from Surveys", use_container_width=True, type="primary"):
+    if st.button("🚀 Fetch Data from Surveys", width='stretch', type="primary"):
         # Build list of surveys
         surveys_to_query = []
         if query_gaia:
@@ -191,7 +191,7 @@ if st.session_state.catalog_data:
             st.markdown(f"**Number of sources:** {len(data)}")
             
             # Display dataframe
-            st.dataframe(data, use_container_width=True, height=300)
+            st.dataframe(data, width='stretch', height=300)
             
             # Download button
             csv = data.to_csv(index=False)

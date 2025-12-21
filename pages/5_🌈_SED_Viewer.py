@@ -169,7 +169,7 @@ if len(photometry) > 0:
         help="Enter redshift to convert SED to rest frame"
     )
     
-    if st.button("⚡ Build SED", use_container_width=True, type="primary"):
+    if st.button("⚡ Build SED", width='stretch', type="primary"):
         with st.spinner("Building SED..."):
             try:
                 sed_df = build_sed(photometry, z=z_sed)
@@ -207,7 +207,7 @@ if len(photometry) > 0:
         )
         
         if fig:
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         
         # SED table
         st.markdown("### 📋 SED Data Table")
@@ -218,7 +218,7 @@ if len(photometry) > 0:
         display_df['flux'] = display_df['flux'].apply(lambda x: f"{x:.2e}")
         display_df['flux_err'] = display_df['flux_err'].apply(lambda x: f"{x:.2e}")
         
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, width='stretch')
         
         # Download
         csv = sed_df.to_csv(index=False)

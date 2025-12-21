@@ -5,6 +5,9 @@ A comprehensive Streamlit web application for galaxy and AGN (Active Galactic Nu
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
+🔗 **Live App**: [https://galaxy-visualization-analysis.streamlit.app/](https://galaxy-visualization-analysis.streamlit.app/)  
+📦 **GitHub**: [https://github.com/Shivaji-137/galaxy_visualizationapp](https://github.com/Shivaji-137/galaxy_visualizationapp)
+
 ## 🎯 Overview
 
 A comprehensive tool designed for professional astronomical research. This application integrates data from multiple surveys (Gaia, SDSS, DESI, Pan-STARRS, 2MASS) to provide a unified platform for galaxy and AGN analysis.
@@ -30,7 +33,7 @@ A comprehensive tool designed for professional astronomical research. This appli
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Shivaji-137/galaxy_visualizationapp.git
 cd galaxy_visualizationapp
 
 # Install dependencies
@@ -207,36 +210,6 @@ galaxy_visualizationapp/
 
 ```
 
-## 🧪 Running Tests
-
-```bash
-# Run unit tests
-python -m pytest tests/
-
-# Or run specific test
-python tests/test_line_fitting.py
-```
-
-## 📊 Example Outputs
-
-### Emission Line Fitting Results (CSV)
-```csv
-line,center,center_err,flux,flux_err,ew,ew_err,sigma,snr
-Halpha,6564.23,0.15,3.45e-15,2.1e-16,-45.2,3.2,2.34,18.5
-Hbeta,4862.71,0.22,1.12e-15,1.5e-16,-12.1,1.8,2.15,12.3
-OIII_5007,5008.45,0.18,2.87e-15,2.3e-16,-32.4,2.9,2.41,15.7
-NII_6583,6585.12,0.19,8.9e-16,1.1e-16,-9.8,1.5,2.28,11.2
-```
-
-### BPT Classification Output
-```
-Target: NGC 4151
-Classification: AGN (Seyfert)
-log([NII]/Hα): -0.589 ± 0.023
-log([OIII]/Hβ): 0.407 ± 0.031
-SFR: 2.34 ± 0.15 M☉/yr (uncorrected)
-12+log(O/H): 8.65 (O3N2 method)
-```
 
 ## ⚠️ Scientific Limitations
 
@@ -294,10 +267,6 @@ Contributions are welcome! Please:
 3. Add tests for new functionality
 4. Submit a pull request
 
-## 📝 Portfolio Blurb
-
-> **Galaxy & AGN Multi-Survey Explorer**: Developed a professional-grade Streamlit web application integrating multi-survey astronomical data (Gaia, SDSS, DESI, Pan-STARRS, 2MASS) for galaxy evolution and AGN research. Implemented automated spectral line fitting, BPT classification algorithms, and multi-wavelength SED construction. Demonstrates proficiency in Python scientific computing (astropy, scipy), data visualization (Plotly, Matplotlib), and astronomical data analysis techniques essential for modern extragalactic research.
-
 ## 📧 Support
 
 For issues, questions, or suggestions, please open an issue on the GitHub repository.
@@ -344,7 +313,8 @@ If you use this tool in your research or education, please cite:
 
 ```
 Chaulagain, S. (2025). Galaxy & AGN Multi-Survey Explorer. 
-GitHub repository: https://github.com/shivaji-chaulagain/galaxy_visualizationapp
+GitHub repository: https://github.com/Shivaji-137/galaxy_visualizationapp
+Web application: https://galaxy-visualization-analysis.streamlit.app/
 ```
 
 ### Version History
