@@ -319,7 +319,7 @@ Web application: https://galaxy-visualization-analysis.streamlit.app/
 
 ### Version History
 
-- **v1.0** (Sept 2025): Initial release with multi-survey integration, spectroscopic analysis, BPT classification, and advanced image enhancement features
+- **v1.0** (Dec 2025): Initial release with multi-survey integration, spectroscopic analysis, BPT classification, and advanced image enhancement features
 
 ---
 
