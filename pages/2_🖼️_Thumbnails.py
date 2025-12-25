@@ -57,7 +57,7 @@ image_size = st.sidebar.slider(
 arcsec_per_pixel = st.sidebar.number_input(
     "Arcsec/pixel",
     min_value=0.1,
-    max_value=2.0,
+    max_value=5.0,
     value=0.25,
     step=0.05,
     help="Typical: 0.25 arcsec/pixel"
