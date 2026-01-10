@@ -522,3 +522,155 @@ def download_jwst_image(preview_url: str, save_path: Optional[str] = None) -> Op
     except Exception as e:
         print(f"Error downloading JWST image: {e}")
         return None
+
+
+def get_jwst_full_resolution_images(
+    ra: float,
+    dec: float,
+    radius: float = 5.0,
+    max_images: int = 5,
+    instrument: Optional[str] = None,
+    size_preference: str = 'largest'
+) -> Optional[List[Dict]]:
+    """
+    Get JWST full resolution images (highest quality available)
+    Prioritizes: TIFF > PNG > high-res JPEG > standard previews
+    
+    Parameters
+    ----------
+    ra : float
+        Right Ascension in degrees
+    dec : float
+        Declination in degrees
+    radius : float, optional
+        Search radius in arcseconds
+    max_images : int, optional
+        Maximum number of images to return
+    instrument : str, optional
+        Specific instrument filter (e.g., 'NIRCAM', 'MIRI')
+    size_preference : str, optional
+        'largest' for biggest files (best quality), 'medium' for balance
+    
+    Returns
+    -------
+    list of dict or None
+        List of dictionaries with HD image URLs and metadata
+    """
+    try:
+        coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
+        
+        # Query MAST for JWST observations
+        query_params = {
+            'coordinates': coord,
+            'radius': radius*u.arcsec,
+            'obs_collection': 'JWST',
+            'dataproduct_type': 'image'
+        }
+        
+        if instrument is not None:
+            query_params['instrument_name'] = instrument.upper()
+        
+        obs_table = Observations.query_criteria(**query_params)
+        
+        if obs_table is None or len(obs_table) == 0:
+            return None
+        
+        images = []
+        for i, obs in enumerate(obs_table[:max_images*3]):
+            if len(images) >= max_images:
+                break
+                
+            obs_id = obs.get('obs_id', obs.get('obsid', 'unknown'))
+            instrument_name = obs.get('instrument_name', 'Unknown')
+            filters = obs.get('filters', 'N/A')
+            target = obs.get('target_name', 'Unknown')
+            proposal = obs.get('proposal_id', 'N/A')
+            
+            try:
+                products = Observations.get_product_list(obs)
+                
+                # Categorize images by quality
+                hd_images = []  # Full resolution
+                preview_images = []  # Standard previews
+                
+                for product in products:
+                    dataURI = product.get('dataURI', '')
+                    product_type = str(product.get('productType', '')).upper()
+                    size = product.get('size', 0)
+                    
+                    if not dataURI:
+                        continue
+                    
+                    dataURI_lower = dataURI.lower()
+                    
+                    # HIGH PRIORITY: Full resolution formats
+                    if '.tif' in dataURI_lower or '.tiff' in dataURI_lower:
+                        quality = 'TIFF (Full Resolution)'
+                        priority = 1
+                        is_hd = True
+                    elif '.png' in dataURI_lower and size > 500000:  # PNG > 500KB
+                        quality = 'PNG (High Resolution)'
+                        priority = 2
+                        is_hd = True
+                    elif '.jpg' in dataURI_lower and size > 500000:  # JPEG > 500KB
+                        quality = 'JPEG (High Resolution)'
+                        priority = 3
+                        is_hd = True
+                    # MEDIUM PRIORITY: Standard previews
+                    elif '.jpg' in dataURI_lower or '.jpeg' in dataURI_lower:
+                        quality = 'JPEG (Standard)'
+                        priority = 4
+                        is_hd = False
+                    elif '.png' in dataURI_lower:
+                        quality = 'PNG (Standard)'
+                        priority = 4
+                        is_hd = False
+                    else:
+                        continue
+                    
+                    download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
+                    
+                    img_info = {
+                        'url': download_url,
+                        'quality': quality,
+                        'priority': priority,
+                        'size_bytes': size,
+                        'size_mb': round(size / (1024*1024), 2),
+                        'filename': dataURI.split('/')[-1] if '/' in dataURI else dataURI
+                    }
+                    
+                    if is_hd:
+                        hd_images.append(img_info)
+                    else:
+                        preview_images.append(img_info)
+                
+                # Sort by priority (lower = better)
+                hd_images.sort(key=lambda x: x['priority'])
+                preview_images.sort(key=lambda x: x['priority'])
+                
+                # Combine: prefer HD, fall back to previews
+                all_images = hd_images + preview_images
+                
+                if all_images:
+                    # Limit to top 3 per observation
+                    images.append({
+                        'obs_id': obs_id,
+                        'instrument': instrument_name,
+                        'filters': filters,
+                        'target': target,
+                        'proposal_id': proposal,
+                        'telescope': 'JWST',
+                        'image_urls': all_images[:3],
+                        'has_hd': len(hd_images) > 0,
+                        'hd_count': len(hd_images),
+                        'total_count': len(all_images)
+                    })
+                    
+            except Exception as e:
+                continue
+        
+        return images if images else None
+        
+    except Exception as e:
+        print(f"Error getting JWST full resolution images: {e}")
+        return None

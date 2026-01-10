@@ -1651,33 +1651,125 @@ with survey_tabs[5]:
             # Get and display preview images
             st.markdown("### 🖼️ JWST Images")
             
-            # Add button to load images
-            if st.button("📷 Load Preview Images", key="load_jwst_images", use_container_width=True):
-                # Check if search params exist
-                if st.session_state.jwst_search_params is None:
-                    st.error("⚠️ Please search for JWST observations first using the button above.")
-                else:
-                    with st.spinner("Loading preview images from MAST..."):
-                        try:
-                            from data_fetchers.jwst_fetcher import get_jwst_preview_images
-                            
-                            params = st.session_state.jwst_search_params
-                            
-                            images = get_jwst_preview_images(
-                                ra=params['ra'],
-                                dec=params['dec'],
-                                radius=params['radius'],
-                                max_images=10,  # Show 10 images
-                                instrument=params.get('instrument')
-                            )
-                            
-                            # Store images in session state
-                            st.session_state.jwst_images = images
-                        except Exception as e:
-                            st.error(f"Error loading preview images: {e}")
+            st.info("""
+            💡 **Image Quality Options:**
+            - **Preview Images**: Fast loading, standard resolution (good for quick inspection)
+            - **HD Images**: Full resolution TIFF/PNG/high-res JPEG (best quality, larger files)
+            """)
             
-            # Display images if they exist in session state
-            if 'jwst_images' in st.session_state and st.session_state.jwst_images:
+            # Image quality selection
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📷 Load Preview Images", key="load_jwst_images", use_container_width=True):
+                    # Check if search params exist
+                    if st.session_state.jwst_search_params is None:
+                        st.error("⚠️ Please search for JWST observations first using the button above.")
+                    else:
+                        with st.spinner("Loading preview images from MAST..."):
+                            try:
+                                from data_fetchers.jwst_fetcher import get_jwst_preview_images
+                                
+                                params = st.session_state.jwst_search_params
+                                
+                                images = get_jwst_preview_images(
+                                    ra=params['ra'],
+                                    dec=params['dec'],
+                                    radius=params['radius'],
+                                    max_images=10,  # Show 10 images
+                                    instrument=params.get('instrument')
+                                )
+                                
+                                # Store images in session state
+                                st.session_state.jwst_images = images
+                                st.session_state.jwst_hd_images = None  # Clear HD images
+                            except Exception as e:
+                                st.error(f"Error loading preview images: {e}")
+            
+            with col2:
+                if st.button("🎨 Load HD Images (Best Quality)", key="load_jwst_hd", use_container_width=True):
+                    # Check if search params exist
+                    if st.session_state.jwst_search_params is None:
+                        st.error("⚠️ Please search for JWST observations first using the button above.")
+                    else:
+                        with st.spinner("Loading full resolution images from MAST... (may take longer)"):
+                            try:
+                                from data_fetchers.jwst_fetcher import get_jwst_full_resolution_images
+                                
+                                params = st.session_state.jwst_search_params
+                                
+                                hd_images = get_jwst_full_resolution_images(
+                                    ra=params['ra'],
+                                    dec=params['dec'],
+                                    radius=params['radius'],
+                                    max_images=10,
+                                    instrument=params.get('instrument'),
+                                    size_preference='largest'
+                                )
+                                
+                                # Store HD images in session state
+                                st.session_state.jwst_hd_images = hd_images
+                                st.session_state.jwst_images = None  # Clear preview images
+                            except Exception as e:
+                                st.error(f"Error loading HD images: {e}")
+            
+            # Display HD images if they exist in session state
+            if 'jwst_hd_images' in st.session_state and st.session_state.jwst_hd_images:
+                hd_images = st.session_state.jwst_hd_images
+                
+                if hd_images and len(hd_images) > 0:
+                    st.success(f"✅ Found {len(hd_images)} observations with HD images!")
+                    
+                    total_hd = sum(img['hd_count'] for img in hd_images)
+                    st.info(f"🎨 **{total_hd} full resolution images** available across all observations")
+                    
+                    # Display HD images
+                    for i, img_info in enumerate(hd_images):
+                        st.markdown(f"---")
+                        st.markdown(f"### Image {i+1}: {img_info['obs_id']}")
+                        
+                        col1, col2 = st.columns([2, 1])
+                        
+                        with col1:
+                            st.markdown(f"""
+                            - **Instrument:** {img_info['instrument']}
+                            - **Filters:** {img_info['filters']}
+                            - **Target:** {img_info['target']}
+                            - **Proposal:** {img_info['proposal_id']}
+                            """)
+                        
+                        with col2:
+                            if img_info['has_hd']:
+                                st.success(f"✨ **{img_info['hd_count']} HD** image(s)")
+                            st.caption(f"📊 {img_info['total_count']} total images")
+                        
+                        # Display available images with quality info
+                        if img_info['image_urls']:
+                            for j, img_url_info in enumerate(img_info['image_urls']):
+                                st.markdown(f"**Image {j+1}:** {img_url_info['quality']} "
+                                          f"({img_url_info['size_mb']} MB)")
+                                
+                                try:
+                                    # Always use non-interactive mode for HD images
+                                    display_image_with_download(
+                                        img_url_info['url'],
+                                        f"JWST {img_info['instrument']} - {img_info['filters']} - {img_url_info['quality']}",
+                                        f"{target_name}_JWST_{img_info['obs_id']}_HD_{j}"
+                                    )
+                                    
+                                    # Show download info
+                                    st.caption(f"📥 Filename: `{img_url_info['filename']}`")
+                                    
+                                except Exception as e:
+                                    st.warning(f"Could not load HD image {j+1}: {e}")
+                                    st.caption(f"Try downloading directly: [Download]({img_url_info['url']})")
+                                
+                                st.markdown("")  # Spacing
+                else:
+                    st.warning("⚠️ No HD images found")
+                    st.info("Try using 'Load Preview Images' instead")
+            
+            # Display preview images if they exist in session state
+            elif 'jwst_images' in st.session_state and st.session_state.jwst_images:
                 images = st.session_state.jwst_images
                 
                 if images and len(images) > 0:
@@ -1771,6 +1863,25 @@ with survey_tabs[5]:
     with st.expander("ℹ️ About JWST Imaging"):
         st.markdown("""
         **James Webb Space Telescope** is the premier infrared space observatory.
+        
+        ### 🎨 Image Quality Options in This Tool:
+        
+        **📷 Preview Images:**
+        - Standard JPEG previews from MAST
+        - Fast loading and display
+        - Sufficient for most visual inspection
+        - File sizes: typically < 500 KB
+        
+        **🎨 HD Images (Full Resolution):**
+        - **TIFF format**: Highest quality, uncompressed
+        - **PNG format**: Lossless compression, excellent quality
+        - **High-res JPEG**: Large JPEG files (> 500 KB)
+        - File sizes: 1-50 MB depending on image
+        - Best for:
+          - Detailed morphology studies
+          - Publication-quality figures
+          - Zooming into fine structures
+          - Scientific measurements
         
         ### 🔬 Key Instruments:
         - **NIRCam** (Near Infrared Camera): 0.6-5.0 μm
