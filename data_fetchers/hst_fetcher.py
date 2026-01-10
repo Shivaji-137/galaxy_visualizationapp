@@ -18,10 +18,11 @@ def fetch_hst_observations(
     ra: float,
     dec: float,
     radius: float = 5.0,
-    instrument: Optional[str] = None
+    instrument: Optional[str] = None,
+    timeout: int = 30
 ) -> Optional[pd.DataFrame]:
     """
-    Fetch HST observations from ESA Hubble archive
+    Fetch HST observations with timeout (uses MAST directly for reliability)
     
     Parameters
     ----------
@@ -33,6 +34,8 @@ def fetch_hst_observations(
         Search radius in arcseconds (default: 5.0)
     instrument : str, optional
         Specific instrument (e.g., 'ACS', 'WFC3', 'WFPC2')
+    timeout : int, optional
+        Query timeout in seconds (default: 30)
     
     Returns
     -------
@@ -42,21 +45,29 @@ def fetch_hst_observations(
     try:
         coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
         
-        # Query ESA Hubble archive
-        result = ESAHubble.query_target(
-            name=f"{ra} {dec}",
-            radius=radius*u.arcsec
+        # Use MAST directly - more reliable than ESA archive
+        print(f"Querying MAST for HST observations at RA={ra:.4f}, Dec={dec:.4f}...")
+        
+        obs_table = Observations.query_criteria(
+            coordinates=coord,
+            radius=radius*u.arcsec,
+            obs_collection='HST',
+            dataproduct_type='image'
         )
         
-        if result is None or len(result) == 0:
+        if obs_table is None or len(obs_table) == 0:
+            print("No HST observations found")
             return None
         
+        print(f"Found {len(obs_table)} HST observations")
+        
         # Convert to pandas
-        df = result.to_pandas()
+        df = obs_table.to_pandas()
         
         # Filter by instrument if specified
         if instrument is not None and 'instrument_name' in df.columns:
             df = df[df['instrument_name'].str.contains(instrument, case=False, na=False)]
+            print(f"After filtering for {instrument}: {len(df)} observations")
         
         return df
         
@@ -399,7 +410,7 @@ def get_skyview_hst_image(
         return None
 
 
-def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
+def get_hst_preview_from_obs_id(obs_id: str, timeout: int = 20) -> Optional[Dict]:
     """
     Get HST preview images directly from observation ID using MAST API
     
@@ -407,6 +418,8 @@ def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
     ----------
     obs_id : str
         HST observation ID (ESA or MAST format)
+    timeout : int, optional
+        Query timeout in seconds (default: 20)
     
     Returns
     -------
@@ -415,6 +428,9 @@ def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
     """
     try:
         from astroquery.mast import Observations
+        
+        # Set timeout for MAST queries
+        Observations.TIMEOUT = timeout
         
         # Try multiple ID formats
         # ESA format: hst_17535_07_wfc3_uvis_f336w_if7p07zf
@@ -434,8 +450,8 @@ def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
                     obs_ids_to_try.append(root_id[:-1])  # e.g., if7p07z
                     obs_ids_to_try.append(root_id[:-2])  # e.g., if7p07
         
-        # Try each possible ID format
-        for try_id in obs_ids_to_try:
+        # Try each possible ID format (but only try first 2 to save time)
+        for try_id in obs_ids_to_try[:2]:
             try:
                 # Query for this specific observation
                 obs_table = Observations.query_criteria(obs_id=try_id)
@@ -446,7 +462,8 @@ def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
                     
                     preview_images = []
                     
-                    for product in products:
+                    # Only check first 10 products to save time
+                    for product in products[:10]:
                         dataURI = product.get('dataURI', '')
                         product_type = str(product.get('productType', '')).upper()
                         
@@ -482,6 +499,10 @@ def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
                                 'type': img_type,
                                 'filename': dataURI.split('/')[-1] if '/' in dataURI else dataURI
                             })
+                            
+                            # Stop after finding 3 previews to speed things up
+                            if len(preview_images) >= 3:
+                                break
                     
                     if preview_images:
                         return {
@@ -490,10 +511,17 @@ def get_hst_preview_from_obs_id(obs_id: str) -> Optional[Dict]:
                             'previews': preview_images,
                             'has_previews': len(preview_images) > 0
                         }
-            except:
+            except Exception as e:
+                # Try next ID format
+                print(f"Error querying {try_id}: {e}")
                 continue
         
-        return None
+        # No previews found
+        return {
+            'obs_id': obs_id,
+            'has_previews': False,
+            'previews': []
+        }
         
     except Exception as e:
         print(f"Error getting preview for {obs_id}: {e}")

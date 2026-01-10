@@ -284,22 +284,29 @@ def query_eso_by_target(target_name, instruments=None, max_results=100):
     try:
         custom_simbad = Simbad()
         custom_simbad.add_votable_fields('ra(d)', 'dec(d)')
+        custom_simbad.TIMEOUT = 20  # Set timeout
         result_table = custom_simbad.query_object(target_name)
         
         if result_table is not None and len(result_table) > 0:
             # Get RA/Dec in degrees
-            ra = result_table['RA_d'][0]
-            dec = result_table['DEC_d'][0]
+            ra = float(result_table['RA_d'][0])
+            dec = float(result_table['DEC_d'][0])
             
-            print(f"Resolved {target_name} via Simbad to RA={ra:.6f}, Dec={dec:.6f}")
+            print(f"✓ Resolved '{target_name}' via Simbad to RA={ra:.6f}, Dec={dec:.6f}")
+            print(f"  Now querying ESO archive at these coordinates...")
             
-            # Use coordinate-based search with larger radius
+            # Use coordinate-based search with larger radius (60 arcsec)
             return query_eso_images(ra, dec, radius_arcsec=60, instruments=instruments, max_results=max_results)
         else:
-            print(f"Could not resolve {target_name} via Simbad")
+            print(f"✗ Could not resolve '{target_name}' via Simbad")
+            print(f"  Simbad returned no results. Check object name spelling.")
             return {}
     except Exception as e:
-        print(f"Error resolving target: {e}")
+        print(f"✗ Error resolving target '{target_name}': {e}")
+        print(f"  This could be due to:")
+        print(f"  - Incorrect object name spelling")
+        print(f"  - Network connection issues")
+        print(f"  - Simbad service temporarily unavailable")
         return {}
 
 

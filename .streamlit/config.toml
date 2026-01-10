@@ -14,6 +14,10 @@ enableCORS = true
 enableXsrfProtection = true
 maxUploadSize = 200
 
+[logger]
+level = "warning"
+messageFormat = "%(asctime)s %(message)s"
+
 [browser]
 serverAddress = "localhost"
 gatherUsageStats = false

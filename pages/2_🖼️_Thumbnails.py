@@ -4,13 +4,267 @@ Thumbnails page - Multi-band imaging viewer
 import streamlit as st
 import sys
 from pathlib import Path
+import requests
+from io import BytesIO
+import base64
+from PIL import Image
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
+import gc
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from utils.style_utils import get_common_css, get_sidebar_header
+from utils.memory_utils import (
+    limit_image_size, 
+    clean_session_state, 
+    get_memory_warning,
+    check_image_size_warning,
+    clear_matplotlib_memory
+)
 
 st.set_page_config(page_title="Thumbnails", page_icon="🖼️", layout="wide")
+
+# Clean session state periodically to prevent memory buildup
+if 'page_loads' not in st.session_state:
+    st.session_state.page_loads = 0
+st.session_state.page_loads += 1
+
+# Clean every 5 page loads
+if st.session_state.page_loads % 5 == 0:
+    clean_session_state(keep_recent=10)
+    clear_matplotlib_memory()
+
+
+# Helper function to display image with Plotly interactive controls
+def display_image_interactive(image_url, caption, unique_key, target_name="image", width=800, height=600):
+    """
+    Display an image with Plotly interactive controls (zoom, pan, download)
+    
+    Parameters
+    ----------
+    image_url : str or PIL.Image
+        URL to image or PIL Image object
+    caption : str
+        Caption for the image
+    unique_key : str
+        Unique key for the widgets
+    target_name : str
+        Name for downloaded file
+    width : int
+        Figure width in pixels
+    height : int
+        Figure height in pixels
+    """
+    try:
+        # Load image
+        if isinstance(image_url, str):
+            response = requests.get(image_url, timeout=10)
+            img = Image.open(BytesIO(response.content))
+        elif isinstance(image_url, Image.Image):
+            img = image_url
+        else:
+            st.error("Invalid image format")
+            return
+        
+        # Convert to RGB if needed
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Store original dimensions for download
+        original_width = img.width
+        original_height = img.height
+        
+        # For display, optionally limit size (but not for download)
+        display_img = img
+        if img.width > max_dimension or img.height > max_dimension:
+            display_img = img.copy()
+            display_img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+        
+        # Convert display image to numpy array
+        img_array = np.array(display_img)
+        
+        # Create Plotly figure with image
+        fig = go.Figure()
+        
+        # Add image as a trace
+        fig.add_trace(
+            go.Image(z=img_array)
+        )
+        
+        # Update layout for better interactivity
+        fig.update_layout(
+            title=dict(
+                text=caption,
+                x=0.5,
+                xanchor='center',
+                font=dict(size=14)
+            ),
+            plot_bgcolor='black',
+            paper_bgcolor='black',
+            xaxis=dict(
+                showticklabels=False,
+                showgrid=False,
+                zeroline=False,
+                range=[0, img_array.shape[1]],
+            ),
+            yaxis=dict(
+                showticklabels=False,
+                showgrid=False,
+                zeroline=False,
+                scaleanchor="x",
+                range=[img_array.shape[0], 0],
+            ),
+            width=width,
+            height=height,
+            margin=dict(l=0, r=0, t=30, b=0),
+            hovermode='closest',
+            # Enable all interactive features
+            dragmode='pan',  # Default to pan mode
+        )
+        
+        # Configure modebar buttons
+        config = {
+            'modeBarButtonsToAdd': [
+                'drawline',
+                'drawopenpath',
+                'eraseshape',
+            ],
+            'modeBarButtonsToRemove': [],
+            'displaylogo': False,
+            'toImageButtonOptions': {
+                'format': 'png',
+                'filename': f"{target_name.replace(' ', '_')}_{unique_key}",
+                'height': original_height,  # Use original full resolution
+                'width': original_width,     # Use original full resolution
+                'scale': 1  # Scale 1 to preserve original pixels
+            }
+        }
+        
+        # Display the interactive figure
+        st.plotly_chart(fig, use_container_width=True, config=config)
+        
+        # Add info about interactive controls
+        with st.expander("ℹ️ Interactive Controls", expanded=False):
+            st.markdown("""
+            **Available controls in the image toolbar:**
+            - 🏠 **Home**: Reset view to original
+            - 🔍 **Zoom**: Click and drag to zoom into region
+            - ↔️ **Pan**: Click and drag to move around
+            - 📷 **Download**: Save image as PNG at **full original resolution** (camera icon)
+            - ⚡ **Zoom In/Out**: Use +/- buttons
+            - 🖱️ **Mouse wheel**: Scroll to zoom in/out
+            
+            **Note:** Downloaded images will be at the original full resolution from the archive,
+            not the reduced size shown in the viewer.
+            
+            **Tip:** Double-click to reset zoom!
+            """)
+        
+    except Exception as e:
+        st.error(f"Error displaying image: {e}")
+        # Fallback to regular image display
+        st.image(image_url, caption=caption, use_container_width=True)
+
+
+def display_image_with_download(image_url, caption, filename):
+    """
+    Display an image with a download button below it
+    
+    Parameters
+    ----------
+    image_url : str
+        URL to the image
+    caption : str
+        Caption for the image
+    filename : str
+        Filename for download
+    """
+    st.image(image_url, caption=caption, use_container_width=True)
+    
+    try:
+        response = requests.get(image_url, timeout=10)
+        img_data = response.content
+        
+        # Determine file extension
+        content_type = response.headers.get('Content-Type', '')
+        if 'jpeg' in content_type or 'jpg' in content_type:
+            ext = 'jpg'
+            mime = 'image/jpeg'
+        elif 'png' in content_type:
+            ext = 'png'
+            mime = 'image/png'
+        elif 'gif' in content_type:
+            ext = 'gif'
+            mime = 'image/gif'
+        else:
+            ext = 'jpg'
+            mime = 'image/jpeg'
+        
+        st.download_button(
+            label="💾 Download",
+            data=img_data,
+            file_name=f"{filename}.{ext}",
+            mime=mime,
+            use_container_width=True
+        )
+    except Exception as e:
+        st.caption(f"⚠️ Download unavailable")
+
+
+# Legacy function for backward compatibility (kept for buttons)
+def display_image_with_controls(image_url, caption, unique_key, target_name="image"):
+    """
+    Display an image with download button only (non-interactive mode)
+    Use display_image_interactive for interactive experience with zoom
+    """
+    # Display image
+    st.image(image_url, caption=caption, use_container_width=True)
+    
+    # Download button
+    try:
+        # Fetch image data for download
+        if isinstance(image_url, str):
+            response = requests.get(image_url, timeout=10)
+            img_data = response.content
+            
+            # Determine file extension
+            content_type = response.headers.get('Content-Type', '')
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                ext = 'jpg'
+                mime = 'image/jpeg'
+            elif 'png' in content_type:
+                ext = 'png'
+                mime = 'image/png'
+            else:
+                ext = 'jpg'
+                mime = 'image/jpeg'
+            
+            st.download_button(
+                label="💾 Download",
+                data=img_data,
+                file_name=f"{target_name.replace(' ', '_')}_{unique_key}.{ext}",
+                mime=mime,
+                use_container_width=True,
+                key=f"download_{unique_key}"
+            )
+        elif isinstance(image_url, Image.Image):
+            # PIL Image object
+            buf = BytesIO()
+            image_url.save(buf, format='PNG')
+            img_data = buf.getvalue()
+            
+            st.download_button(
+                label="💾 Download",
+                data=img_data,
+                file_name=f"{target_name.replace(' ', '_')}_{unique_key}.png",
+                mime='image/png',
+                key=f"download_{unique_key}"
+            )
+    except Exception as e:
+        st.caption("⚠️ Download temporarily unavailable")
 
 # Apply common styling
 st.markdown(get_common_css(), unsafe_allow_html=True)
@@ -45,6 +299,18 @@ st.markdown("---")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⚙️ Image Settings")
 
+# Interactive mode toggle
+use_interactive = st.sidebar.checkbox(
+    "🎨 Interactive Mode (Plotly)",
+    value=False,
+    help="Enable interactive zoom, pan, and download with Plotly viewer (uses more memory)"
+)
+
+if use_interactive:
+    st.sidebar.warning("⚠️ Interactive mode uses more memory")
+else:
+    st.sidebar.success("✓ Simple mode (recommended for multiple images)")
+
 image_size = st.sidebar.slider(
     "Image Size (pixels)",
     min_value=150,
@@ -53,6 +319,10 @@ image_size = st.sidebar.slider(
     step=50,
     help="Larger sizes may take longer to load"
 )
+
+# Show warning for large images only in interactive mode
+if use_interactive:
+    check_image_size_warning(image_size)
 
 arcsec_per_pixel = st.sidebar.number_input(
     "Arcsec/pixel",
@@ -166,14 +436,34 @@ with survey_tabs[0]:
         try:
             if show_color:
                 st.markdown("**🎨 SDSS Color Composite (gri)**")
-                st.image(sdss_color_url, caption="SDSS gri color composite", width='stretch')
+                if use_interactive:
+                    display_image_interactive(
+                        sdss_color_url, 
+                        "SDSS gri color composite", 
+                        "sdss_color",
+                        target_name=target_name,
+                        width=800,
+                        height=600
+                    )
+                else:
+                    display_image_with_controls(
+                        sdss_color_url, 
+                        "SDSS gri color composite", 
+                        "sdss_color",
+                        target_name=target_name
+                    )
             
             if show_bw:
                 st.markdown("**⬛ SDSS Individual Bands (Grayscale)**")
                 cols = st.columns(5)
                 for i, band in enumerate(sdss_bands):
                     with cols[i]:
-                        st.image(sdss_color_url, caption=f"{band}-band", width='stretch')
+                        # Use simple image display for grayscale bands
+                        st.image(
+                            sdss_color_url, 
+                            caption=f"{band}-band",
+                            use_container_width=True
+                        )
         except Exception as e:
             st.error(f"Error loading SDSS images: {e}")
     
@@ -213,14 +503,34 @@ with survey_tabs[1]:
         try:
             if show_color:
                 st.markdown("**🎨 Legacy Survey Color Composite (grz)**")
-                st.image(legacy_color_url, caption=f"Legacy Survey {legacy_layer}", width='stretch')
+                if use_interactive:
+                    display_image_interactive(
+                        legacy_color_url, 
+                        f"Legacy Survey {legacy_layer}", 
+                        "legacy_color",
+                        target_name=target_name,
+                        width=800,
+                        height=600
+                    )
+                else:
+                    display_image_with_controls(
+                        legacy_color_url, 
+                        f"Legacy Survey {legacy_layer}", 
+                        "legacy_color",
+                        target_name=target_name
+                    )
             
             if show_bw:
                 st.markdown("**⬛ Legacy Survey Individual Bands (Grayscale)**")
                 cols = st.columns(3)
                 for i, (band_name, url) in enumerate(legacy_band_urls.items()):
                     with cols[i]:
-                        st.image(url, caption=f"{band_name}-band", width='stretch')
+                        # Use simple image display for grayscale bands
+                        st.image(
+                            url, 
+                            caption=f"{band_name}-band",
+                            use_container_width=True
+                        )
         except Exception as e:
             st.error(f"Error loading Legacy Survey images: {e}")
     
@@ -255,7 +565,22 @@ with survey_tabs[2]:
     if st.button("🖼️ Load DSS Image", key="fetch_dss", width='stretch'):
         try:
             st.markdown(f"**⬛ DSS Grayscale Image**")
-            st.image(dss_url, caption=f"DSS - {dss_survey}", width='stretch')
+            if use_interactive:
+                display_image_interactive(
+                    dss_url, 
+                    f"DSS - {dss_survey}", 
+                    "dss_image",
+                    target_name=target_name,
+                    width=800,
+                    height=600
+                )
+            else:
+                display_image_with_controls(
+                    dss_url, 
+                    f"DSS - {dss_survey}", 
+                    "dss_image",
+                    target_name=target_name
+                )
             st.info("💡 DSS images are grayscale (black & white) from photographic plates")
         except Exception as e:
             st.error(f"Error loading DSS image: {e}")
@@ -309,29 +634,44 @@ with survey_tabs[3]:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔍 Query by Position", key="eso_query_pos", width='stretch'):
+            # Clear previous results
+            st.session_state.pop('eso_pos_results', None)
+            st.session_state.pop('eso_name_results', None)
+            st.session_state['eso_query_done'] = False
+            st.session_state['eso_name_query_done'] = False
+            
             with st.spinner("Querying ESO archive..."):
                 try:
                     from data_fetchers.eso_fetcher import query_eso_images, get_eso_instrument_info
                     
+                    st.info(f"Searching at RA={ra:.6f}°, Dec={dec:.6f}° with radius={eso_radius}\"")
+                    
                     results = query_eso_images(
                         ra, dec, 
                         radius_arcsec=eso_radius,
-                        instruments=[inst.lower() for inst in eso_instruments]
+                        instruments=[inst.lower() for inst in eso_instruments],
+                        max_results=100
                     )
                     
                     # Store results in session state
                     st.session_state['eso_pos_results'] = results
                     st.session_state['eso_query_done'] = True
+                    st.session_state['eso_search_coords'] = (ra, dec, eso_radius)
                         
                 except ImportError:
                     st.error("⚠️ Please install astroquery: `pip install astroquery`")
                 except Exception as e:
                     st.error(f"Error querying ESO archive: {e}")
                     st.caption("💡 ESO archive may be temporarily unavailable")
+                    import traceback
+                    st.caption(f"Debug: {traceback.format_exc()}")
     
     # Display results from session state (outside button callback)
     if 'eso_pos_results' in st.session_state and st.session_state.get('eso_query_done'):
         results = st.session_state['eso_pos_results']
+        search_coords = st.session_state.get('eso_search_coords', (ra, dec, eso_radius))
+        
+        st.caption(f"📍 Search: RA={search_coords[0]:.6f}°, Dec={search_coords[1]:.6f}°, Radius={search_coords[2]}\"")
         
         if results:
             st.success(f"✅ Found data from {len(results)} instrument(s)")
@@ -378,10 +718,13 @@ with survey_tabs[3]:
                                 if result and 'error' not in result:
                                     st.success("✅ FITS file downloaded and processed!")
                                     
-                                    # Display image
-                                    st.image(result['image'], 
-                                            caption=f"{instrument} - {selected_dp}",
-                                            width='stretch')
+                                    # Display image with zoom and download controls
+                                    display_image_with_controls(
+                                        result['image'],
+                                        f"{instrument} - {selected_dp}",
+                                        f"eso_pos_{instrument}_{selected_dp.replace('.', '_')}",
+                                        target_name=target_name
+                                    )
                                     
                                     # Show header info
                                     with st.expander("📋 FITS Header Information"):
@@ -413,30 +756,53 @@ with survey_tabs[3]:
     
     with col2:
         if st.button("🎯 Query by Name", key="eso_query_name", width='stretch'):
+            # Clear previous results
+            st.session_state.pop('eso_pos_results', None)
+            st.session_state.pop('eso_name_results', None)
+            st.session_state['eso_query_done'] = False
+            st.session_state['eso_name_query_done'] = False
+            
             with st.spinner(f"Searching ESO archive for {target_name}..."):
                 try:
                     from data_fetchers.eso_fetcher import query_eso_by_target
                     
                     # Clean target name for query
                     search_name = target_name.split('(')[0].strip()
+                    if '=' in search_name:
+                        # If target_name is coordinates like "RA=123, Dec=45"
+                        st.warning("⚠️ Target name appears to be coordinates. Use 'Query by Position' instead.")
+                        search_name = None
                     
-                    results = query_eso_by_target(
-                        search_name,
-                        instruments=[inst.lower() for inst in eso_instruments]
-                    )
+                    st.info(f"Resolving '{search_name}' via Simbad and searching ESO...")
                     
-                    # Store results in session state
-                    st.session_state['eso_name_results'] = results
-                    st.session_state['eso_name_query_done'] = True
+                    if search_name:
+                        results = query_eso_by_target(
+                            search_name,
+                            instruments=[inst.lower() for inst in eso_instruments],
+                            max_results=100
+                        )
+                        
+                        # Store results in session state
+                        st.session_state['eso_name_results'] = results
+                        st.session_state['eso_name_query_done'] = True
+                        st.session_state['eso_search_name'] = search_name
+                    else:
+                        st.session_state['eso_name_results'] = {}
+                        st.session_state['eso_name_query_done'] = True
                         
                 except ImportError:
                     st.error("⚠️ Please install astroquery: `pip install astroquery`")
                 except Exception as e:
                     st.error(f"Error querying ESO archive: {e}")
+                    import traceback
+                    st.caption(f"Debug: {traceback.format_exc()}")
     
     # Display results from session state (outside button callback)
     if 'eso_name_results' in st.session_state and st.session_state.get('eso_name_query_done'):
         results = st.session_state['eso_name_results']
+        search_name = st.session_state.get('eso_search_name', target_name)
+        
+        st.caption(f"🎯 Searched for: '{search_name}'")
         
         if results:
             st.success(f"✅ Found data from {len(results)} instrument(s)")
@@ -512,8 +878,19 @@ with survey_tabs[3]:
                                 else:
                                     st.error("❌ Failed to download or process FITS file")
         else:
-            st.warning(f"❌ No ESO observations found for target")
-            st.info("💡 Try querying by position instead")
+            st.warning(f"❌ No ESO observations found for '{search_name}'")
+            st.info("""
+            **Possible reasons:**
+            - Object name not recognized by Simbad (try alternative names)
+            - No observations exist for this target in ESO archive
+            - Selected instruments haven't observed this target
+            
+            **Tips:**
+            - Try using common names (e.g., "NGC 4151" instead of "NGC4151")
+            - Try "Query by Position" if you know the coordinates
+            - Check Simbad directly: http://simbad.u-strasbg.fr/simbad/
+            - Try different instruments or increase search radius
+            """)
     
     
     with st.expander("ℹ️ About ESO Instruments"):
@@ -687,12 +1064,32 @@ with survey_tabs[4]:
                 st.markdown("---")
                 st.markdown("#### 🔍 Checking for Preview Images...")
                 
-                with st.spinner("Checking observation preview availability..."):
-                    # Quick check first 3 observations for preview availability
-                    check_obs_ids = all_obs_ids[:3]
+                # Cache preview checks to avoid repeated API calls
+                if 'hst_preview_cache' not in st.session_state:
+                    st.session_state.hst_preview_cache = {}
+                
+                # MEMORY FIX: Limit cache size to prevent memory buildup
+                if len(st.session_state.hst_preview_cache) > 20:
+                    # Keep only the 10 most recent entries
+                    keys = list(st.session_state.hst_preview_cache.keys())
+                    for old_key in keys[:10]:
+                        del st.session_state.hst_preview_cache[old_key]
+                
+                with st.spinner("Checking observation preview availability (this may take a moment)..."):
+                    # Quick check only FIRST observation for preview availability
+                    # Don't loop through all 3 - that causes long waits
+                    check_obs_ids = all_obs_ids[:1]  # Only check first one
                     for check_id in check_obs_ids:
-                        preview_check = get_hst_preview_from_obs_id(check_id)
-                        if preview_check and preview_check['has_previews']:
+                        # Use cached result if available
+                        if check_id in st.session_state.hst_preview_cache:
+                            preview_check = st.session_state.hst_preview_cache[check_id]
+                        else:
+                            # Make the API call
+                            preview_check = get_hst_preview_from_obs_id(check_id)
+                            # Cache the result
+                            st.session_state.hst_preview_cache[check_id] = preview_check
+                        
+                        if preview_check and preview_check.get('has_previews', False):
                             preview_images_found = True
                             break
                 
@@ -773,9 +1170,17 @@ with survey_tabs[4]:
                         if obs_id in obs_info:
                             st.caption(obs_info[obs_id])
                         
-                        preview_data = get_hst_preview_from_obs_id(obs_id)
+                        # Use cached preview data if available
+                        if 'hst_preview_cache' not in st.session_state:
+                            st.session_state.hst_preview_cache = {}
                         
-                        if preview_data and preview_data['has_previews']:
+                        if obs_id in st.session_state.hst_preview_cache:
+                            preview_data = st.session_state.hst_preview_cache[obs_id]
+                        else:
+                            preview_data = get_hst_preview_from_obs_id(obs_id)
+                            st.session_state.hst_preview_cache[obs_id] = preview_data
+                        
+                        if preview_data and preview_data.get('has_previews', False):
                             st.markdown(f"**Found {len(preview_data['previews'])} preview image(s)**")
                             
                             # Create columns for preview images
@@ -789,13 +1194,23 @@ with survey_tabs[4]:
                                         preview = preview_data['previews'][i + j]
                                         with cols[j]:
                                             try:
-                                                # Directly display image - no HEAD check needed
-                                                # MAST URLs work fine, HEAD checks sometimes fail
-                                                st.image(
-                                                    preview['url'], 
-                                                    caption=f"{preview['filename']}\n{preview['type']}", 
-                                                    width='stretch'
-                                                )
+                                                # Use interactive viewer if enabled
+                                                if use_interactive:
+                                                    display_image_interactive(
+                                                        preview['url'],
+                                                        f"{preview['filename']}\n{preview['type']}",
+                                                        f"hst_preview_{obs_id}_{i+j}",
+                                                        target_name=target_name,
+                                                        width=400,
+                                                        height=400
+                                                    )
+                                                else:
+                                                    display_image_with_controls(
+                                                        preview['url'],
+                                                        f"{preview['filename']}\n{preview['type']}",
+                                                        f"hst_preview_{obs_id}_{i+j}",
+                                                        target_name=target_name
+                                                    )
                                                 images_displayed = True
                                             except Exception as e:
                                                 st.caption(f"❌ {preview['filename']}")
@@ -841,9 +1256,23 @@ with survey_tabs[4]:
                         
                         # Try each preview URL
                         img_loaded = False
-                        for preview_url in img_info['preview_urls']:
+                        for idx, preview_url in enumerate(img_info['preview_urls']):
                             try:
-                                st.image(preview_url, caption=f"{img_info['obs_id']}", width='stretch')
+                                if use_interactive:
+                                    display_image_interactive(
+                                        preview_url,
+                                        f"{img_info['obs_id']}",
+                                        f"hst_mast_{img_info['obs_id']}_{idx}",
+                                        target_name=target_name,
+                                        width=600,
+                                        height=500
+                                    )
+                                else:
+                                    display_image_with_download(
+                                        preview_url, 
+                                        f"{img_info['obs_id']}", 
+                                        f"{target_name}_HST_{img_info['obs_id']}"
+                                    )
                                 img_loaded = True
                                 images_displayed = True
                                 break
@@ -865,7 +1294,21 @@ with survey_tabs[4]:
                 skyview_url = get_skyview_hst_image(params['ra'], params['dec'], size=params['radius']/60.0)
                 if skyview_url:
                     try:
-                        st.image(skyview_url, caption="SkyView HST Composite", width='stretch')
+                        if use_interactive:
+                            display_image_interactive(
+                                skyview_url,
+                                "SkyView HST Composite",
+                                "hst_skyview",
+                                target_name=target_name,
+                                width=800,
+                                height=600
+                            )
+                        else:
+                            display_image_with_download(
+                                skyview_url, 
+                                "SkyView HST Composite", 
+                                f"{target_name}_HST_SkyView"
+                            )
                         images_displayed = True
                     except Exception as e:
                         st.warning(f"SkyView image not available: may indicate no HST coverage at this position")
@@ -928,7 +1371,11 @@ with survey_tabs[4]:
                     st.markdown(f"**Filter:** {best_img['filter']}")
                     
                     try:
-                        st.image(best_img['preview_url'], caption=f"HST - {best_img['instrument']}", width='stretch')
+                        display_image_with_download(
+                            best_img['preview_url'], 
+                            f"HST - {best_img['instrument']}", 
+                            f"{target_name}_HST_{best_img['observation_id']}"
+                        )
                     except Exception as e:
                         st.caption(f"ESA preview not available")
                 else:
@@ -1150,6 +1597,10 @@ with survey_tabs[5]:
             progress_bar.progress(30)
             
             # Convert to grayscale numpy array
+            # MEMORY FIX: Downsample large images before processing
+            if img.width > 800 or img.height > 800:
+                img = img.resize((min(800, img.width), min(800, img.height)), Image.Resampling.LANCZOS)
+            
             img_gray = color.rgb2gray(np.array(img.convert('RGB')))
             
             status_text.text("🔬 Applying filters...")
@@ -1188,13 +1639,13 @@ with survey_tabs[5]:
                 titles.append("Meijering - Filaments")
                 
                 # Display Meijering result
-                fig1, ax1 = plt.subplots(figsize=(10, 10))
+                fig1, ax1 = plt.subplots(figsize=(8, 8), dpi=80)
                 im1 = ax1.imshow(meij, cmap='magma', origin='lower')
                 ax1.set_title("Meijering Filter - Linear Structures", fontsize=14, fontweight='bold')
                 ax1.axis('off')
                 plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
-                st.pyplot(fig1)
-                plt.close()
+                st.pyplot(fig1, clear_figure=True)
+                plt.close('all')
             
             if apply_sato:
                 st.markdown("### 🧬 Sato Filter - Tubular Structures")
@@ -1204,13 +1655,13 @@ with survey_tabs[5]:
                 titles.append("Sato - Tubular")
                 
                 # Display Sato result
-                fig2, ax2 = plt.subplots(figsize=(10, 10))
+                fig2, ax2 = plt.subplots(figsize=(8, 8), dpi=80)
                 im2 = ax2.imshow(sato_img, cmap='magma', origin='lower')
                 ax2.set_title("Sato Filter - Tubular Structures", fontsize=14, fontweight='bold')
                 ax2.axis('off')
                 plt.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
-                st.pyplot(fig2)
-                plt.close()
+                st.pyplot(fig2, clear_figure=True)
+                plt.close('all')
             
             # Side-by-side comparison if both filters applied
             if apply_meijering and apply_sato:
@@ -1218,20 +1669,20 @@ with survey_tabs[5]:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    fig3, ax3 = plt.subplots(figsize=(6, 6))
+                    fig3, ax3 = plt.subplots(figsize=(5, 5), dpi=80)
                     ax3.imshow(meijering(img_smooth), cmap='magma', origin='lower')
                     ax3.set_title("Meijering - Linear", fontweight='bold')
                     ax3.axis('off')
-                    st.pyplot(fig3)
-                    plt.close()
+                    st.pyplot(fig3, clear_figure=True)
+                    plt.close('all')
                 
                 with col2:
-                    fig4, ax4 = plt.subplots(figsize=(6, 6))
+                    fig4, ax4 = plt.subplots(figsize=(5, 5), dpi=80)
                     ax4.imshow(sato(img_smooth), cmap='magma', origin='lower')
                     ax4.set_title("Sato - Tubular", fontweight='bold')
                     ax4.axis('off')
-                    st.pyplot(fig4)
-                    plt.close()
+                    st.pyplot(fig4, clear_figure=True)
+                    plt.close('all')
                 
                 # Advanced Analysis Section
                 if run_advanced:
@@ -1252,7 +1703,7 @@ with survey_tabs[5]:
                             corner_response = corners[0]  # Corner strength
                             corner_roundness = corners[1]  # Roundness measure
                             
-                            fig_corners, axes_corners = plt.subplots(1, 3, figsize=(15, 5))
+                            fig_corners, axes_corners = plt.subplots(1, 3, figsize=(12, 4), dpi=80)
                             
                             axes_corners[0].imshow(img_gray, cmap='gray', origin='lower')
                             axes_corners[0].set_title("Original Image", fontweight='bold')
@@ -1269,8 +1720,8 @@ with survey_tabs[5]:
                             plt.colorbar(im2, ax=axes_corners[2], fraction=0.046)
                             
                             plt.tight_layout()
-                            st.pyplot(fig_corners)
-                            plt.close()
+                            st.pyplot(fig_corners, clear_figure=True)
+                            plt.close('all')
                             
                         except Exception as e:
                             st.warning(f"Corner detection: {e}")
@@ -1298,7 +1749,7 @@ with survey_tabs[5]:
                             
                             # Show 6 representative channels
                             n_show = min(6, C)
-                            fig_feat, axes_feat = plt.subplots(2, 3, figsize=(15, 10))
+                            fig_feat, axes_feat = plt.subplots(2, 3, figsize=(12, 8), dpi=80)
                             axes_feat = axes_feat.ravel()
                             
                             channel_names = [
@@ -1316,8 +1767,8 @@ with survey_tabs[5]:
                                 axes_feat[i].axis('off')
                             
                             plt.tight_layout()
-                            st.pyplot(fig_feat)
-                            plt.close()
+                            st.pyplot(fig_feat, clear_figure=True)
+                            plt.close('all')
                             
                             st.success(f"✓ Extracted {C} feature channels showing intensity, edges, and textures at multiple scales")
                             
@@ -1332,7 +1783,7 @@ with survey_tabs[5]:
                         try:
                             edges_sobel = sobel(img_smooth)
                             
-                            fig_edge, axes_edge = plt.subplots(1, 2, figsize=(12, 5))
+                            fig_edge, axes_edge = plt.subplots(1, 2, figsize=(10, 4), dpi=80)
                             
                             axes_edge[0].imshow(img_gray, cmap='gray', origin='lower')
                             axes_edge[0].set_title("Original", fontweight='bold')
@@ -1344,8 +1795,8 @@ with survey_tabs[5]:
                             plt.colorbar(im_edge, ax=axes_edge[1], fraction=0.046)
                             
                             plt.tight_layout()
-                            st.pyplot(fig_edge)
-                            plt.close()
+                            st.pyplot(fig_edge, clear_figure=True)
+                            plt.close('all')
                             
                         except Exception as e:
                             st.warning(f"Edge detection: {e}")
@@ -1366,7 +1817,7 @@ with survey_tabs[5]:
                             # Mark boundaries
                             img_with_boundaries = mark_boundaries(img_rgb, segments, color=(1, 1, 0))
                             
-                            fig_seg, axes_seg = plt.subplots(1, 3, figsize=(15, 5))
+                            fig_seg, axes_seg = plt.subplots(1, 3, figsize=(12, 4), dpi=80)
                             
                             axes_seg[0].imshow(img_gray, cmap='gray', origin='lower')
                             axes_seg[0].set_title("Original", fontweight='bold')
@@ -1381,8 +1832,8 @@ with survey_tabs[5]:
                             axes_seg[2].axis('off')
                             
                             plt.tight_layout()
-                            st.pyplot(fig_seg)
-                            plt.close()
+                            st.pyplot(fig_seg, clear_figure=True)
+                            plt.close('all')
                             
                             st.success(f"✓ Image segmented into {segments.max()} superpixels")
                             
@@ -1391,8 +1842,14 @@ with survey_tabs[5]:
                         
                         st.markdown("---")
                         st.success("✓ Advanced analysis complete!")
+                        
+                        # Clean up memory after intensive operations
+                        clear_matplotlib_memory()
                 
                 st.success("✓ Image enhancement complete!")
+                
+                # Force garbage collection after processing
+                gc.collect()
                 
         except Exception as e:
             st.error(f"Error enhancing image: {e}")
@@ -1529,7 +1986,11 @@ if st.button("📸 Load Multi-Survey Gallery", type="primary", width='stretch'):
                         f"http://skyserver.sdss.org/dr17/SkyServerWS/ImgCutout/getjpeg?"
                         f"ra={ra}&dec={dec}&scale={scale}&width={image_size}&height={image_size}"
                     )
-                    st.image(sdss_color_url, caption="SDSS Color (gri)", width='stretch')
+                    display_image_with_download(
+                        sdss_color_url, 
+                        "SDSS Color (gri)", 
+                        f"{target_name}_SDSS_color"
+                    )
                 except:
                     st.warning("SDSS color unavailable")
             
@@ -1541,7 +2002,11 @@ if st.button("📸 Load Multi-Survey Gallery", type="primary", width='stretch'):
                         f"https://www.legacysurvey.org/viewer/jpeg-cutout?"
                         f"ra={ra}&dec={dec}&size={int(fov_arcsec)}&layer=ls-dr10&pixscale={pixscale}"
                     )
-                    st.image(legacy_color_url, caption="Legacy Survey Color (grz)", width='stretch')
+                    display_image_with_download(
+                        legacy_color_url, 
+                        "Legacy Survey Color (grz)", 
+                        f"{target_name}_Legacy_color"
+                    )
                 except:
                     st.warning("Legacy Survey unavailable")
         
@@ -1562,14 +2027,22 @@ if st.button("📸 Load Multi-Survey Gallery", type="primary", width='stretch'):
                         f"https://archive.stsci.edu/cgi-bin/dss_search?"
                         f"v=poss2ukstu_red&r={ra}&d={dec}&e=J2000&h={dss_size}&w={dss_size}&f=gif&c=none&fov=NONE&v3="
                     )
-                    st.image(dss_url, caption="DSS2 Red (Historical)", width='stretch')
+                    display_image_with_download(
+                        dss_url, 
+                        "DSS2 Red (Historical)", 
+                        f"{target_name}_DSS2_red"
+                    )
                 except:
                     st.warning("DSS unavailable")
             
             # SDSS r-band
             with cols[1]:
                 try:
-                    st.image(sdss_color_url, caption="SDSS r-band (Modern)", width='stretch')
+                    display_image_with_download(
+                        sdss_color_url, 
+                        "SDSS r-band (Modern)", 
+                        f"{target_name}_SDSS_r"
+                    )
                 except:
                     st.warning("SDSS unavailable")
             
@@ -1581,7 +2054,11 @@ if st.button("📸 Load Multi-Survey Gallery", type="primary", width='stretch'):
                         f"https://www.legacysurvey.org/viewer/jpeg-cutout?"
                         f"ra={ra}&dec={dec}&size={int(fov_arcsec)}&layer=ls-dr10-r&pixscale={pixscale}"
                     )
-                    st.image(legacy_r_url, caption="Legacy r-band (Deep)", width='stretch')
+                    display_image_with_download(
+                        legacy_r_url, 
+                        "Legacy r-band (Deep)", 
+                        f"{target_name}_Legacy_r"
+                    )
                 except:
                     st.warning("Legacy r-band unavailable")
         

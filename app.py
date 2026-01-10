@@ -4,6 +4,12 @@ Main Streamlit application entry point
 """
 import streamlit as st
 from pathlib import Path
+import logging
+
+# Suppress WebSocket errors from Tornado
+logging.getLogger('tornado.access').setLevel(logging.WARNING)
+logging.getLogger('tornado.application').setLevel(logging.WARNING)
+logging.getLogger('tornado.general').setLevel(logging.WARNING)
 
 # Configure page
 st.set_page_config(

@@ -14,10 +14,13 @@ A comprehensive tool designed for professional astronomical research. This appli
 
 ### Key Features:
 
-- **Multi-Survey Integration**: DESI, SDSS, Pan-STARRS, 2MASS, Gaia
+- **Multi-Survey Integration**: DESI, SDSS, Pan-STARRS, 2MASS, Gaia, HST, ESO Archive
+- **Interactive Image Viewer**: Zoom, pan, and download full-resolution images with Plotly
 - **Spectral Analysis**: Emission line fitting (Hα, Hβ, [OIII], [NII], etc.)
 - **BPT Classification**: Distinguish star-forming galaxies, AGN, and composites
 - **SED Construction**: Multi-wavelength spectral energy distributions
+- **Advanced Image Processing**: Meijering, Sato, Förstner filters for structure detection
+- **One-Click Downloads**: Download images from any survey at full archive resolution
 - **Interactive Visualizations**: Explore data with modern plotting tools
 - **Physical Property Estimation**: Stellar mass, SFR, and metallicity calculations
 
@@ -80,9 +83,20 @@ The application will open in your default web browser at `http://localhost:8501`
   - Pan-STARRS grizy cutouts
   - SDSS ugriz imaging
   - Legacy Survey (DECaLS) images
+  - HST (Hubble Space Telescope) high-resolution imaging
+  - ESO Archive data access
+  - DSS (Digitized Sky Survey) historical plates
   - SkyView multi-wavelength surveys
   - Adjustable image size and field of view
   - Side-by-side comparison gallery
+
+- **Interactive Image Viewer** (NEW):
+  - **Interactive Mode Toggle**: Switch between static and interactive display
+  - **Plotly-powered Zoom & Pan**: Explore images interactively with smooth zoom and pan
+  - **Full-Resolution Download**: Download original uncompressed images via camera icon
+  - **Drawing Tools**: Annotate images with lines and freehand drawings
+  - **Real-time Controls**: Adjust view with mouse wheel zoom and toolbar controls
+  - **Memory Optimized**: Smart image size management for performance
 
 - **Advanced Image Analysis**:
   - **Gaussian Smoothing**: Reduce noise and enhance subtle features
@@ -91,6 +105,12 @@ The application will open in your default web browser at `http://localhost:8501`
   - **Multi-scale Feature Extraction**: Extract features at different scales (intensity, edges, texture)
   - **Förstner Corner Detection**: Identify keypoints and structural features
   - Interactive enhancement controls in sidebar
+
+- **Download Features** (NEW):
+  - **One-click Download**: Download button for all survey images (non-interactive mode)
+  - **High-Quality Exports**: PNG/JPEG format with proper filenames
+  - **Batch Access**: Download multiple images from different surveys
+  - **Archive-Quality**: Full resolution from source surveys (SDSS, Pan-STARRS, HST, Legacy)
 
 ### 3. Spectroscopy & Emission Lines
 - SDSS spectrum retrieval and display
@@ -192,6 +212,8 @@ galaxy_visualizationapp/
 │   ├── gaia_fetcher.py        # Gaia DR3 queries
 │   ├── sdss_fetcher.py        # SDSS data & spectra
 │   ├── panstarrs_fetcher.py   # Pan-STARRS imaging
+│   ├── hst_fetcher.py         # Hubble Space Telescope data
+│   ├── eso_fetcher.py         # ESO Archive access
 │   ├── desi_fetcher.py        # DESI spectroscopy
 │   └── twomass_fetcher.py     # 2MASS near-IR
 ├── pages/                     # Streamlit multi-page app
@@ -206,6 +228,8 @@ galaxy_visualizationapp/
 │   ├── spectral_utils.py      # Spectrum analysis
 │   ├── bpt_diagrams.py        # BPT classification
 │   ├── sed_builder.py         # SED construction
+│   ├── memory_utils.py        # Memory optimization for large images
+│   ├── style_utils.py         # UI styling utilities
 │   └── galaxy_properties.py   # Physical properties
 
 ```
@@ -244,6 +268,8 @@ When using this tool for research, please cite the appropriate survey papers:
 - **SDSS**: [York et al. (2000)](https://ui.adsabs.harvard.edu/abs/2000AJ....120.1579Y)
 - **Pan-STARRS**: [Chambers et al. (2016)](https://ui.adsabs.harvard.edu/abs/2016arXiv161205560C)
 - **2MASS**: [Skrutskie et al. (2006)](https://ui.adsabs.harvard.edu/abs/2006AJ....131.1163S)
+- **HST**: [Space Telescope Science Institute](https://archive.stsci.edu/)
+- **ESO Archive**: [European Southern Observatory](https://archive.eso.org/)
 - **DESI**: [DESI Collaboration et al. (2016)](https://ui.adsabs.harvard.edu/abs/2016arXiv161100036D)
 
 ### BPT Diagnostic Papers
@@ -319,7 +345,8 @@ Web application: https://galaxy-visualization-analysis.streamlit.app/
 
 ### Version History
 
-- **v1.0** (Dec 2025): Initial release with multi-survey integration, spectroscopic analysis, BPT classification, and advanced image enhancement features
+- **v1.0** (Dec 2024): Initial release with multi-survey integration, spectroscopic analysis, BPT classification, and advanced image enhancement features
+- **v1.1** (Jan 2025): Added interactive image viewer with Plotly, full-resolution downloads, HST/ESO archive integration, memory optimization, and enhanced download capabilities across all surveys
 
 ---
 
