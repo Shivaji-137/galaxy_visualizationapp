@@ -1546,6 +1546,14 @@ with survey_tabs[5]:
     JWST data is still being released - famous targets and recent observations available.
     """)
     
+    # Initialize JWST session state if not present
+    if 'jwst_search_params' not in st.session_state:
+        st.session_state.jwst_search_params = None
+    if 'jwst_obs' not in st.session_state:
+        st.session_state.jwst_obs = None
+    if 'jwst_images' not in st.session_state:
+        st.session_state.jwst_images = None
+    
     # JWST search parameters
     st.markdown("---")
     st.markdown("**Search Parameters:**")
@@ -1645,24 +1653,28 @@ with survey_tabs[5]:
             
             # Add button to load images
             if st.button("📷 Load Preview Images", key="load_jwst_images", use_container_width=True):
-                with st.spinner("Loading preview images from MAST..."):
-                    try:
-                        from data_fetchers.jwst_fetcher import get_jwst_preview_images
-                        
-                        params = st.session_state.jwst_search_params
-                        
-                        images = get_jwst_preview_images(
-                            ra=params['ra'],
-                            dec=params['dec'],
-                            radius=params['radius'],
-                            max_images=10,  # Show 10 images
-                            instrument=params.get('instrument')
-                        )
-                        
-                        # Store images in session state
-                        st.session_state.jwst_images = images
-                    except Exception as e:
-                        st.error(f"Error loading preview images: {e}")
+                # Check if search params exist
+                if st.session_state.jwst_search_params is None:
+                    st.error("⚠️ Please search for JWST observations first using the button above.")
+                else:
+                    with st.spinner("Loading preview images from MAST..."):
+                        try:
+                            from data_fetchers.jwst_fetcher import get_jwst_preview_images
+                            
+                            params = st.session_state.jwst_search_params
+                            
+                            images = get_jwst_preview_images(
+                                ra=params['ra'],
+                                dec=params['dec'],
+                                radius=params['radius'],
+                                max_images=10,  # Show 10 images
+                                instrument=params.get('instrument')
+                            )
+                            
+                            # Store images in session state
+                            st.session_state.jwst_images = images
+                        except Exception as e:
+                            st.error(f"Error loading preview images: {e}")
             
             # Display images if they exist in session state
             if 'jwst_images' in st.session_state and st.session_state.jwst_images:
