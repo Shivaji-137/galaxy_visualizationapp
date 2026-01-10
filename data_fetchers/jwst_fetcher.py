@@ -530,7 +530,8 @@ def get_jwst_full_resolution_images(
     radius: float = 5.0,
     max_images: int = 5,
     instrument: Optional[str] = None,
-    size_preference: str = 'largest'
+    size_preference: str = 'largest',
+    images_per_observation: int = 3
 ) -> Optional[List[Dict]]:
     """
     Get JWST full resolution images (highest quality available)
@@ -545,11 +546,13 @@ def get_jwst_full_resolution_images(
     radius : float, optional
         Search radius in arcseconds
     max_images : int, optional
-        Maximum number of images to return
+        Maximum number of observations to return
     instrument : str, optional
         Specific instrument filter (e.g., 'NIRCAM', 'MIRI')
     size_preference : str, optional
         'largest' for biggest files (best quality), 'medium' for balance
+    images_per_observation : int, optional
+        Number of images to return per observation (default: 3)
     
     Returns
     -------
@@ -652,7 +655,7 @@ def get_jwst_full_resolution_images(
                 all_images = hd_images + preview_images
                 
                 if all_images:
-                    # Limit to top 3 per observation
+                    # Limit to user-specified number per observation
                     images.append({
                         'obs_id': obs_id,
                         'instrument': instrument_name,
@@ -660,10 +663,11 @@ def get_jwst_full_resolution_images(
                         'target': target,
                         'proposal_id': proposal,
                         'telescope': 'JWST',
-                        'image_urls': all_images[:3],
+                        'image_urls': all_images[:images_per_observation],
                         'has_hd': len(hd_images) > 0,
                         'hd_count': len(hd_images),
-                        'total_count': len(all_images)
+                        'total_count': len(all_images),
+                        'showing_count': min(len(all_images), images_per_observation)
                     })
                     
             except Exception as e:

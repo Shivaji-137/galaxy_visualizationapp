@@ -1558,7 +1558,7 @@ with survey_tabs[5]:
     st.markdown("---")
     st.markdown("**Search Parameters:**")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         jwst_radius = st.slider(
             "Search Radius (arcsec)",
@@ -1577,6 +1577,15 @@ with survey_tabs[5]:
             index=0,
             key="jwst_instrument",
             help="Select specific JWST instrument"
+        )
+    
+    with col3:
+        jwst_images_per_obs = st.selectbox(
+            "Images per Observation",
+            options=[1, 2, 3, 4, 5, 10],
+            index=2,  # Default to 3
+            key="jwst_images_per_obs",
+            help="How many images to show for each observation"
         )
     
     if st.button("🛰️ Search for JWST Images", key="fetch_jwst", use_container_width=True):
@@ -1655,6 +1664,8 @@ with survey_tabs[5]:
             💡 **Image Quality Options:**
             - **Preview Images**: Fast loading, standard resolution (good for quick inspection)
             - **HD Images**: Full resolution TIFF/PNG/high-res JPEG (best quality, larger files)
+            
+            **Tip:** Use the "Images per Observation" dropdown above to control how many images to display per observation.
             """)
             
             # Image quality selection
@@ -1697,13 +1708,17 @@ with survey_tabs[5]:
                                 
                                 params = st.session_state.jwst_search_params
                                 
+                                # Get images_per_obs from user selection
+                                images_per_obs = st.session_state.get('jwst_images_per_obs', 3)
+                                
                                 hd_images = get_jwst_full_resolution_images(
                                     ra=params['ra'],
                                     dec=params['dec'],
                                     radius=params['radius'],
                                     max_images=10,
                                     instrument=params.get('instrument'),
-                                    size_preference='largest'
+                                    size_preference='largest',
+                                    images_per_observation=images_per_obs
                                 )
                                 
                                 # Store HD images in session state
@@ -1740,7 +1755,12 @@ with survey_tabs[5]:
                         with col2:
                             if img_info['has_hd']:
                                 st.success(f"✨ **{img_info['hd_count']} HD** image(s)")
-                            st.caption(f"📊 {img_info['total_count']} total images")
+                            showing = img_info.get('showing_count', len(img_info['image_urls']))
+                            total = img_info['total_count']
+                            if showing < total:
+                                st.caption(f"📊 Showing {showing} of {total} images")
+                            else:
+                                st.caption(f"📊 {total} total images")
                         
                         # Display available images with quality info
                         if img_info['image_urls']:
@@ -1775,6 +1795,9 @@ with survey_tabs[5]:
                 if images and len(images) > 0:
                     st.success(f"✓ Found {len(images)} images with previews")
                     
+                    # Get images_per_obs from user selection
+                    images_per_obs = st.session_state.get('jwst_images_per_obs', 3)
+                    
                     # Display images
                     for i, img_info in enumerate(images):
                         st.markdown(f"---")
@@ -1791,11 +1814,16 @@ with survey_tabs[5]:
                             """)
                         
                         with col2:
-                            st.markdown(f"**{len(img_info['preview_urls'])}** preview(s) available")
+                            total_previews = len(img_info['preview_urls'])
+                            showing = min(total_previews, images_per_obs)
+                            if showing < total_previews:
+                                st.markdown(f"**Showing {showing} of {total_previews}** preview(s)")
+                            else:
+                                st.markdown(f"**{total_previews}** preview(s) available")
                         
-                        # Display preview images
+                        # Display preview images (limit by user selection)
                         if img_info['preview_urls']:
-                            for j, preview_url in enumerate(img_info['preview_urls'][:2]):  # Show 2 previews
+                            for j, preview_url in enumerate(img_info['preview_urls'][:images_per_obs]):
                                 try:
                                     if use_interactive:
                                         display_image_interactive(
