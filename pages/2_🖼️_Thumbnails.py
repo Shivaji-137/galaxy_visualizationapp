@@ -404,7 +404,7 @@ run_advanced = st.sidebar.checkbox(
 # Survey selection
 st.markdown("### 🔭 Available Surveys")
 
-survey_tabs = st.tabs(["SDSS", "Legacy Survey", "DSS", "ESO Archive", "HST (Hubble)", "🔬 Image Enhancement"])
+survey_tabs = st.tabs(["SDSS", "Legacy Survey", "DSS", "ESO Archive", "HST (Hubble)", "JWST", "🔬 Image Enhancement"])
 
 # SDSS
 with survey_tabs[0]:
@@ -959,10 +959,10 @@ with survey_tabs[4]:
     # HST search parameters
     hst_radius = st.slider(
         "Search radius (arcsec)",
-        min_value=1.0,
-        max_value=30.0,
-        value=10.0,
-        step=1.0,
+        min_value=5.0,
+        max_value=200.0,
+        value=30.0,
+        step=5.0,
         help="Larger radius increases chance of finding HST data",
         key="hst_radius"
     )
@@ -1246,46 +1246,49 @@ with survey_tabs[4]:
                 st.markdown("#### Method 2: MAST Product Search")
                 st.caption("Alternative search method - often finds images when Method 1 doesn't")
                 
-                with st.spinner("Searching MAST product database..."):
-                    params = st.session_state.hst_search_params
-                    mast_images = get_mast_hst_images(params['ra'], params['dec'], radius=params['radius'], max_images=5)
-                
-                if mast_images:
-                    for img_info in mast_images:
-                        st.markdown(f"**Observation:** {img_info['obs_id']} | **Instrument:** {img_info['instrument']} | **Filters:** {img_info['filters']}")
-                        
-                        # Try each preview URL
-                        img_loaded = False
-                        for idx, preview_url in enumerate(img_info['preview_urls']):
-                            try:
-                                if use_interactive:
-                                    display_image_interactive(
-                                        preview_url,
-                                        f"{img_info['obs_id']}",
-                                        f"hst_mast_{img_info['obs_id']}_{idx}",
-                                        target_name=target_name,
-                                        width=600,
-                                        height=500
-                                    )
-                                else:
-                                    display_image_with_download(
-                                        preview_url, 
-                                        f"{img_info['obs_id']}", 
-                                        f"{target_name}_HST_{img_info['obs_id']}"
-                                    )
-                                img_loaded = True
-                                images_displayed = True
-                                break
-                            except Exception as e:
-                                continue
-                        
-                        if not img_loaded:
-                            st.caption(f"Preview not available for {img_info['obs_id']}")
+                if 'hst_search_params' in st.session_state:
+                    with st.spinner("Searching MAST product database..."):
+                        params = st.session_state.hst_search_params
+                        mast_images = get_mast_hst_images(params['ra'], params['dec'], radius=params['radius'], max_images=5)
+                    
+                    if mast_images:
+                        for img_info in mast_images:
+                            st.markdown(f"**Observation:** {img_info['obs_id']} | **Instrument:** {img_info['instrument']} | **Filters:** {img_info['filters']}")
+                            
+                            # Try each preview URL
+                            img_loaded = False
+                            for idx, preview_url in enumerate(img_info['preview_urls']):
+                                try:
+                                    if use_interactive:
+                                        display_image_interactive(
+                                            preview_url,
+                                            f"{img_info['obs_id']}",
+                                            f"hst_mast_{img_info['obs_id']}_{idx}",
+                                            target_name=target_name,
+                                            width=600,
+                                            height=500
+                                        )
+                                    else:
+                                        display_image_with_download(
+                                            preview_url, 
+                                            f"{img_info['obs_id']}", 
+                                            f"{target_name}_HST_{img_info['obs_id']}"
+                                        )
+                                    img_loaded = True
+                                    images_displayed = True
+                                    break
+                                except Exception as e:
+                                    continue
+                            
+                            if not img_loaded:
+                                st.caption(f"Preview not available for {img_info['obs_id']}")
+                    else:
+                        st.info("No images found in MAST product search.")
                 else:
-                    st.info("No images found in MAST product search.")
+                    st.info("Please search for HST observations first using the button above.")
             
             # Method 3: SkyView HST composite
-            if not images_displayed:
+            if not images_displayed and 'hst_search_params' in st.session_state:
                 st.markdown("---")
                 st.markdown("#### Method 3: SkyView HST Composite")
                 st.info("SkyView generates composite images from multiple HST observations")
@@ -1314,7 +1317,7 @@ with survey_tabs[4]:
                         st.warning(f"SkyView image not available: may indicate no HST coverage at this position")
             
             # Method 4: HLA Cutout Service
-            if not images_displayed:
+            if not images_displayed and 'hst_search_params' in st.session_state:
                 st.markdown("---")
                 st.markdown("#### Method 4: Hubble Legacy Archive (HLA) Cutout")
                 st.info("HLA provides processed mosaics if available at this position")
@@ -1360,8 +1363,9 @@ with survey_tabs[4]:
                 """)
             
             # Method 5: ESA Archive preview (fallback)
-            with st.expander("🔄 Additional: ESA Archive Previews"):
-                params = st.session_state.hst_search_params
+            if 'hst_search_params' in st.session_state:
+                with st.expander("🔄 Additional: ESA Archive Previews"):
+                    params = st.session_state.hst_search_params
                 best_img = get_best_hst_image(params['ra'], params['dec'], radius=params['radius'])
                 
                 if best_img and best_img.get('preview_url'):
@@ -1456,17 +1460,18 @@ with survey_tabs[4]:
                 """)
         
         else:
-            st.warning(f"⚠️ No HST observations found within {st.session_state.hst_search_params.get('radius', 10.0)}\" of this target.")
-            st.info("""
-            **Suggestions:**
-            - Increase the search radius
-            - HST has limited sky coverage (~5% of the sky)
-            - Try searching in MAST Portal directly: https://mast.stsci.edu
-            """)
-            
-            # Still try HLA cutout service
-            st.markdown("### Trying HLA Cutout Service...")
-            params = st.session_state.hst_search_params
+            if 'hst_search_params' in st.session_state:
+                st.warning(f"⚠️ No HST observations found within {st.session_state.hst_search_params.get('radius', 10.0)}\" of this target.")
+                st.info("""
+                **Suggestions:**
+                - Increase the search radius
+                - HST has limited sky coverage (~5% of the sky)
+                - Try searching in MAST Portal directly: https://mast.stsci.edu
+                """)
+                
+                # Still try HLA cutout service
+                st.markdown("### Trying HLA Cutout Service...")
+                params = st.session_state.hst_search_params
             hla_urls = search_hla_images(params['ra'], params['dec'], radius=params['radius'])
             if hla_urls:
                 st.info("Found possible HLA image (may show blank if no data)")
@@ -1531,8 +1536,301 @@ with survey_tabs[4]:
         ```
         """)
 
-# Image Enhancement
+# JWST (James Webb Space Telescope)
 with survey_tabs[5]:
+    st.markdown("#### James Webb Space Telescope (JWST)")
+    st.markdown("*Infrared space observatory - Launched December 2021*")
+    
+    st.info("""
+    🛰️ **James Webb Space Telescope** provides unprecedented infrared observations.
+    JWST data is still being released - famous targets and recent observations available.
+    """)
+    
+    # JWST search parameters
+    st.markdown("---")
+    st.markdown("**Search Parameters:**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        jwst_radius = st.slider(
+            "Search Radius (arcsec)",
+            min_value=5.0,
+            max_value=300.0,
+            value=60.0,
+            step=5.0,
+            key="jwst_radius",
+            help="Larger radius increases chance of finding JWST data"
+        )
+    
+    with col2:
+        jwst_instrument = st.selectbox(
+            "Instrument",
+            options=["All", "NIRCAM", "MIRI", "NIRSPEC", "NIRISS"],
+            index=0,
+            key="jwst_instrument",
+            help="Select specific JWST instrument"
+        )
+    
+    if st.button("🛰️ Search for JWST Images", key="fetch_jwst", use_container_width=True):
+        # Create progress container
+        progress_container = st.empty()
+        status_text = st.empty()
+        
+        try:
+            # Step 1: Query observations
+            status_text.info("Step 1/2: Querying MAST for JWST observations...")
+            with st.spinner("Searching JWST archives..."):
+                # Store search parameters
+                st.session_state.jwst_search_params = {
+                    'ra': ra,
+                    'dec': dec,
+                    'radius': jwst_radius,
+                    'instrument': None if jwst_instrument == "All" else jwst_instrument
+                }
+                
+                # Query JWST observations
+                try:
+                    from data_fetchers.jwst_fetcher import fetch_jwst_observations
+                    
+                    jwst_obs = fetch_jwst_observations(
+                        ra=ra,
+                        dec=dec,
+                        radius=jwst_radius,
+                        instrument=None if jwst_instrument == "All" else jwst_instrument,
+                        timeout=20  # Reduced timeout
+                    )
+                    
+                    st.session_state.jwst_obs = jwst_obs
+                    
+                    if jwst_obs is not None and len(jwst_obs) > 0:
+                        status_text.success(f"✓ Found {len(jwst_obs)} JWST observations!")
+                    else:
+                        status_text.warning("No JWST observations found at this location.")
+                    
+                except ImportError:
+                    status_text.error("JWST fetcher module not found. Please check installation.")
+                    jwst_obs = None
+                    
+        except Exception as e:
+            status_text.error(f"Error searching JWST archives: {e}")
+            st.session_state.jwst_obs = None
+        finally:
+            # Clear progress indicators after a moment
+            import time
+            time.sleep(1)
+            progress_container.empty()
+    
+    # Display JWST results if available
+    if 'jwst_obs' in st.session_state and st.session_state.jwst_obs is not None:
+        jwst_obs = st.session_state.jwst_obs
+        
+        if len(jwst_obs) > 0:
+            st.success(f"✓ Found {len(jwst_obs)} JWST observations!")
+            
+            # Show observations table
+            with st.expander("📊 JWST Observations Table", expanded=False):
+                # Select useful columns
+                display_cols = []
+                for col in ['obs_id', 'instrument_name', 'filters', 'target_name', 'proposal_id', 'exposure_time']:
+                    if col in jwst_obs.columns:
+                        display_cols.append(col)
+                
+                if display_cols:
+                    st.dataframe(jwst_obs[display_cols], use_container_width=True)
+                else:
+                    st.dataframe(jwst_obs, use_container_width=True)
+            
+            # Get and display preview images
+            st.markdown("### 🖼️ JWST Images")
+            
+            # Add button to load images
+            if st.button("📷 Load Preview Images", key="load_jwst_images", use_container_width=True):
+                with st.spinner("Loading preview images from MAST..."):
+                    try:
+                        from data_fetchers.jwst_fetcher import get_jwst_preview_images
+                        
+                        params = st.session_state.jwst_search_params
+                        
+                        images = get_jwst_preview_images(
+                            ra=params['ra'],
+                            dec=params['dec'],
+                            radius=params['radius'],
+                            max_images=10,  # Show 10 images
+                            instrument=params.get('instrument')
+                        )
+                        
+                        # Store images in session state
+                        st.session_state.jwst_images = images
+                    except Exception as e:
+                        st.error(f"Error loading preview images: {e}")
+            
+            # Display images if they exist in session state
+            if 'jwst_images' in st.session_state and st.session_state.jwst_images:
+                images = st.session_state.jwst_images
+                
+                if images and len(images) > 0:
+                    st.success(f"✓ Found {len(images)} images with previews")
+                    
+                    # Display images
+                    for i, img_info in enumerate(images):
+                        st.markdown(f"---")
+                        st.markdown(f"**Image {i+1}:** {img_info['obs_id']}")
+                        
+                        col1, col2 = st.columns([2, 1])
+                        
+                        with col1:
+                            st.markdown(f"""
+                            - **Instrument:** {img_info['instrument']}
+                            - **Filters:** {img_info['filters']}
+                            - **Target:** {img_info['target']}
+                            - **Proposal:** {img_info['proposal_id']}
+                            """)
+                        
+                        with col2:
+                            st.markdown(f"**{len(img_info['preview_urls'])}** preview(s) available")
+                        
+                        # Display preview images
+                        if img_info['preview_urls']:
+                            for j, preview_url in enumerate(img_info['preview_urls'][:2]):  # Show 2 previews
+                                try:
+                                    if use_interactive:
+                                        display_image_interactive(
+                                            preview_url,
+                                            f"JWST {img_info['instrument']} - {img_info['filters']}",
+                                            f"jwst_{i}_{j}",
+                                            target_name=target_name,
+                                            width=800,
+                                            height=600
+                                        )
+                                    else:
+                                        display_image_with_download(
+                                            preview_url,
+                                            f"JWST {img_info['instrument']} - {img_info['filters']}",
+                                            f"{target_name}_JWST_{img_info['obs_id']}_{j}"
+                                        )
+                                except Exception as e:
+                                    st.warning(f"Could not load preview {j+1}: {e}")
+                else:
+                    st.warning("⚠️ No preview images found for these observations")
+                    st.info("""
+                    Preview images may not be available yet for:
+                    - Very recent observations
+                    - Spectroscopic observations
+                    - Some data products still in processing
+                    
+                    **You can still access the data using the observation IDs above**
+                    """)
+            
+            # Download options
+            st.markdown("---")
+            st.markdown("#### 📥 Download Options")
+            
+            if 'obs_id' in jwst_obs.columns:
+                obs_ids = jwst_obs['obs_id'].tolist()[:10]
+                
+                obs_ids_text = "\n".join([str(obs_id) for obs_id in obs_ids])
+                
+                st.download_button(
+                    label="💾 Download Observation IDs (TXT)",
+                    data=obs_ids_text,
+                    file_name=f"jwst_observations_{target_name.replace(' ', '_')}.txt",
+                    mime="text/plain",
+                    help="Download list of JWST observation IDs"
+                )
+                
+                st.markdown("**Top Observation IDs:**")
+                for obs_id in obs_ids[:5]:
+                    st.code(obs_id, language="text")
+        
+        else:
+            if 'jwst_search_params' in st.session_state:
+                st.warning(f"⚠️ No JWST observations found within {st.session_state.jwst_search_params.get('radius', 60.0)}\" of this target.")
+            else:
+                st.warning("⚠️ No JWST observations found.")
+            st.info("""
+            **Suggestions:**
+            - Increase the search radius
+            - JWST has observed ~1000 targets so far (growing rapidly!)
+            - Try famous targets: Cartwheel Galaxy, Stephan's Quintet, Carina Nebula
+            - Search MAST Portal directly: https://mast.stsci.edu
+            """)
+    
+    # Information about JWST
+    with st.expander("ℹ️ About JWST Imaging"):
+        st.markdown("""
+        **James Webb Space Telescope** is the premier infrared space observatory.
+        
+        ### 🔬 Key Instruments:
+        - **NIRCam** (Near Infrared Camera): 0.6-5.0 μm
+          - Primary imager with 15+ filters
+          - Short and long wavelength channels
+        - **MIRI** (Mid-Infrared Instrument): 5-28 μm
+          - Mid-IR imaging and spectroscopy
+          - 9 imaging filters
+        - **NIRSpec** (Near Infrared Spectrograph): 0.6-5.3 μm
+          - Multi-object spectroscopy
+        - **NIRISS** (Near Infrared Imager/Slitless Spectrograph): 0.8-5.0 μm
+          - Wide-field imaging and spectroscopy
+        
+        ### 📊 Resolution:
+        - **~0.031-0.11 arcsec/pixel** (depending on instrument/mode)
+        - **Diffraction-limited** in infrared
+        
+        ### 🌟 Best For:
+        - High-redshift galaxies
+        - Dusty regions (invisible to Hubble)
+        - Stellar populations through dust
+        - Protoplanetary disks
+        - Exoplanet atmospheres
+        
+        ### 🚀 Mission Info:
+        - **Launched**: December 25, 2021
+        - **Location**: L2 Lagrange point (~1.5 million km from Earth)
+        - **Mirror**: 6.5 meters (3× larger than Hubble)
+        - **Data Release**: Science observations ongoing
+        
+        ### 📚 Data Archive:
+        - **MAST Portal**: Main archive for all JWST data
+        - Data is public 12 months after observation (some sooner)
+        """)
+    
+    # Famous JWST targets helper
+    with st.expander("🌟 Famous JWST Targets"):
+        st.markdown("""
+        Try searching these famous JWST targets:
+        
+        - **Cartwheel Galaxy**: RA=9.4333°, Dec=-33.7128°
+        - **Stephan's Quintet**: RA=339.0129°, Dec=33.9589°
+        - **Carina Nebula**: RA=161.265°, Dec=-59.866°
+        - **Southern Ring Nebula**: RA=151.761°, Dec=-40.444°
+        - **SMACS 0723 (Deep Field)**: RA=110.841°, Dec=-73.453°
+        - **NGC 628 (Phantom Galaxy)**: RA=24.1739°, Dec=15.7839°
+        - **Tarantula Nebula**: RA=84.678°, Dec=-69.103°
+        
+        **Tip**: Use the "Overview" page to search by name, then come here for images!
+        """)
+    
+    with st.expander("🔗 Direct Links to JWST Archives"):
+        st.markdown(f"""
+        **Search for JWST data at this position:**
+        
+        **MAST Portal (Main Archive):**
+        - [MAST JWST Search](https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html)
+        - Coordinates: {ra:.6f}, {dec:.6f}
+        
+        **JWST Science:**
+        - [JWST Official Website](https://jwst.nasa.gov/)
+        - [Approved Programs](https://www.stsci.edu/jwst/science-execution/approved-programs)
+        
+        **Direct queries:**
+        ```
+        RA:  {ra:.6f}
+        Dec: {dec:.6f}
+        ```
+        """)
+
+# Image Enhancement
+with survey_tabs[6]:
     st.markdown("#### 🔬 Image Enhancement & Analysis")
     st.markdown("*Reveal hidden structures using advanced filters*")
     

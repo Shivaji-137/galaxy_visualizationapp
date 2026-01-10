@@ -14,7 +14,8 @@ A comprehensive tool designed for professional astronomical research. This appli
 
 ### Key Features:
 
-- **Multi-Survey Integration**: DESI, SDSS, Pan-STARRS, 2MASS, Gaia, HST, ESO Archive
+- **Multi-Survey Integration**: DESI, SDSS, Pan-STARRS, 2MASS, Gaia, HST, ESO Archive, **JWST** ⭐ NEW!
+- **JWST Data Access**: Query and retrieve James Webb Space Telescope observations and images ⭐ NEW!
 - **Interactive Image Viewer**: Zoom, pan, and download full-resolution images with Plotly
 - **Spectral Analysis**: Emission line fitting (Hα, Hβ, [OIII], [NII], etc.)
 - **BPT Classification**: Distinguish star-forming galaxies, AGN, and composites
@@ -84,6 +85,7 @@ The application will open in your default web browser at `http://localhost:8501`
   - SDSS ugriz imaging
   - Legacy Survey (DECaLS) images
   - HST (Hubble Space Telescope) high-resolution imaging
+  - **JWST (James Webb Space Telescope) infrared imaging** ⭐ NEW!
   - ESO Archive data access
   - DSS (Digitized Sky Survey) historical plates
   - SkyView multi-wavelength surveys
@@ -112,7 +114,56 @@ The application will open in your default web browser at `http://localhost:8501`
   - **Batch Access**: Download multiple images from different surveys
   - **Archive-Quality**: Full resolution from source surveys (SDSS, Pan-STARRS, HST, Legacy)
 
-### 3. Spectroscopy & Emission Lines
+### 3. JWST (James Webb Space Telescope) Integration ⭐ NEW!
+
+Complete support for JWST observations through a dedicated module:
+
+- **Query JWST Observations**:
+  - Query by sky coordinates (RA, Dec, radius)
+  - Query by JWST proposal ID
+  - Filter by instrument (NIRCAM, MIRI, NIRSPEC, NIRISS, FGS)
+  - Filter by specific filters (F277W, F200W, F356W, etc.)
+  
+- **JWST Instruments Supported**:
+  | Instrument | Type | Wavelength | Description |
+  |------------|------|------------|-------------|
+  | **NIRCAM** | Imager | 0.6-5.0 μm | Primary near-IR camera with 15+ filters |
+  | **NIRSPEC** | Spectrograph | 0.6-5.3 μm | Multi-object spectroscopy |
+  | **MIRI** | Imager/Spec | 5-28 μm | Mid-IR imaging & spectroscopy |
+  | **NIRISS** | Imager/Spec | 0.8-5.0 μm | Wide-field slitless spectroscopy |
+  | **FGS** | Guider | 0.6-5.0 μm | Precision pointing |
+
+- **Preview Images**:
+  - Get preview images with download URLs
+  - Interactive display in Thumbnails page
+  - Support for multiple previews per observation
+  
+- **Famous JWST Targets**:
+  - Built-in database of iconic JWST observations
+  - Cartwheel Galaxy, Stephan's Quintet, Carina Nebula, and more
+  - One-click access to these targets
+
+- **Complete Documentation**:
+  - `README_JWST.md` - Module overview and API reference
+  - `JWST_GUIDE.md` - User guide with examples
+  - `test_jwst.py` - Comprehensive test suite
+  - `examples_jwst_usage.py` - Working code examples
+
+**Quick Example:**
+```python
+from data_fetchers.jwst_fetcher import fetch_jwst_observations
+
+# Query Cartwheel Galaxy
+df = fetch_jwst_observations(
+    ra=9.4333, 
+    dec=-33.7128, 
+    radius=60.0,
+    instrument='NIRCAM'
+)
+print(f"Found {len(df)} JWST observations")
+```
+
+### 4. Spectroscopy & Emission Lines
 - SDSS spectrum retrieval and display
 - Interactive spectrum viewer with zoom
 - Automated emission line fitting:
@@ -126,7 +177,7 @@ The application will open in your default web browser at `http://localhost:8501`
 - Line flux, equivalent width, and velocity measurements
 - Signal-to-noise calculations
 
-### 4. BPT Classification
+### 5. BPT Classification
 - Automatic BPT diagram generation
 - Object classification:
   - Star-forming galaxies
@@ -139,7 +190,7 @@ The application will open in your default web browser at `http://localhost:8501`
   - Gas-phase metallicity
   - Stellar mass estimates
 
-### 5. SED Viewer
+### 6. SED Viewer
 - Multi-survey photometry compilation
 - Interactive SED plots
 - Rest-frame or observed-frame display
@@ -207,18 +258,20 @@ galaxy_visualizationapp/
 ├── app.py                      # Main Streamlit application
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # This file
+├── README_JWST.md              # JWST module documentation ⭐ NEW!
 ├── data_fetchers/             # Data acquisition modules
 │   ├── __init__.py
 │   ├── gaia_fetcher.py        # Gaia DR3 queries
 │   ├── sdss_fetcher.py        # SDSS data & spectra
 │   ├── panstarrs_fetcher.py   # Pan-STARRS imaging
 │   ├── hst_fetcher.py         # Hubble Space Telescope data
+│   ├── jwst_fetcher.py        # James Webb Space Telescope data ⭐ NEW!
 │   ├── eso_fetcher.py         # ESO Archive access
 │   ├── desi_fetcher.py        # DESI spectroscopy
 │   └── twomass_fetcher.py     # 2MASS near-IR
 ├── pages/                     # Streamlit multi-page app
 │   ├── 1_📊_Overview.py
-│   ├── 2_🖼️_Thumbnails.py
+│   ├── 2_🖼️_Thumbnails.py    # Now includes JWST tab ⭐ UPDATED!
 │   ├── 3_📈_Spectra_and_Lines.py
 │   ├── 4_🔬_BPT_Classification.py
 │   └── 5_🌈_SED_Viewer.py
@@ -231,6 +284,12 @@ galaxy_visualizationapp/
 │   ├── memory_utils.py        # Memory optimization for large images
 │   ├── style_utils.py         # UI styling utilities
 │   └── galaxy_properties.py   # Physical properties
+├── test_jwst.py               # JWST module test suite ⭐ NEW!
+├── examples_jwst_usage.py     # JWST usage examples ⭐ NEW!
+├── JWST_GUIDE.md              # Complete JWST user guide ⭐ NEW!
+├── ESO_GUIDE.md               # ESO Archive guide
+├── QUICKSTART.md              # Quick start guide
+└── SCIENTIFIC_NOTES.md        # Scientific methodology
 
 ```
 
@@ -269,6 +328,7 @@ When using this tool for research, please cite the appropriate survey papers:
 - **Pan-STARRS**: [Chambers et al. (2016)](https://ui.adsabs.harvard.edu/abs/2016arXiv161205560C)
 - **2MASS**: [Skrutskie et al. (2006)](https://ui.adsabs.harvard.edu/abs/2006AJ....131.1163S)
 - **HST**: [Space Telescope Science Institute](https://archive.stsci.edu/)
+- **JWST**: [Gardner et al. (2006)](https://ui.adsabs.harvard.edu/abs/2006SSRv..123..485G) | [MAST JWST Archive](https://mast.stsci.edu/) ⭐ NEW!
 - **ESO Archive**: [European Southern Observatory](https://archive.eso.org/)
 - **DESI**: [DESI Collaboration et al. (2016)](https://ui.adsabs.harvard.edu/abs/2016arXiv161100036D)
 
@@ -306,7 +366,7 @@ MIT License - See LICENSE file for details
 - AstroPy Project for fundamental astronomy tools
 - Astroquery for survey data access
 - Streamlit for the web framework
-- SDSS, Pan-STARRS, Gaia, 2MASS, and DESI teams for providing public data
+- SDSS, Pan-STARRS, Gaia, 2MASS, HST, JWST, ESO, and DESI teams for providing public data
 
 ---
 
@@ -347,6 +407,7 @@ Web application: https://galaxy-visualization-analysis.streamlit.app/
 
 - **v1.0** (Dec 2024): Initial release with multi-survey integration, spectroscopic analysis, BPT classification, and advanced image enhancement features
 - **v1.1** (Jan 2025): Added interactive image viewer with Plotly, full-resolution downloads, HST/ESO archive integration, memory optimization, and enhanced download capabilities across all surveys
+- **v1.2** (Jan 2026): **JWST Integration** - Added complete James Webb Space Telescope support with dedicated module, preview images, instrument filtering, and famous targets database ⭐ NEW!
 
 ---
 
