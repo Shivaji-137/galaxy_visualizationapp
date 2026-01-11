@@ -16,6 +16,7 @@ A comprehensive tool designed for professional astronomical research. This appli
 
 - **Multi-Survey Integration**: DESI, SDSS, Pan-STARRS, 2MASS, Gaia, HST, ESO Archive, **JWST** ⭐ NEW!
 - **JWST Data Access**: Query and retrieve James Webb Space Telescope observations and images ⭐ NEW!
+- **Smart Image Filtering**: HST/JWST automatically show only i2d (drizzled) images - final science-ready products ⭐ NEW!
 - **Interactive Image Viewer**: Zoom, pan, and download full-resolution images with Plotly
 - **Spectral Analysis**: Emission line fitting (Hα, Hβ, [OIII], [NII], etc.)
 - **BPT Classification**: Distinguish star-forming galaxies, AGN, and composites
@@ -84,13 +85,14 @@ The application will open in your default web browser at `http://localhost:8501`
   - Pan-STARRS grizy cutouts
   - SDSS ugriz imaging
   - Legacy Survey (DECaLS) images
-  - HST (Hubble Space Telescope) high-resolution imaging
-  - **JWST (James Webb Space Telescope) infrared imaging** ⭐ NEW!
+  - HST (Hubble Space Telescope) high-resolution imaging - **i2d only** ⭐
+  - **JWST (James Webb Space Telescope) infrared imaging - i2d only** ⭐ NEW!
   - ESO Archive data access
   - DSS (Digitized Sky Survey) historical plates
   - SkyView multi-wavelength surveys
   - Adjustable image size and field of view
   - Side-by-side comparison gallery
+  - **Smart Filtering**: HST/JWST automatically filter to show only i2d (drizzled, combined) images for optimal quality
 
 - **Interactive Image Viewer** (NEW):
   - **Interactive Mode Toggle**: Switch between static and interactive display
@@ -137,6 +139,7 @@ Complete support for JWST observations through a dedicated module:
   - Get preview images with download URLs
   - Interactive display in Thumbnails page
   - Support for multiple previews per observation
+  - **Automatic i2d filtering**: Only final drizzled science products shown (no _cal, _uncal, _rate)
   
 - **Famous JWST Targets**:
   - Built-in database of iconic JWST observations
@@ -408,6 +411,7 @@ Web application: https://galaxy-visualization-analysis.streamlit.app/
 - **v1.0** (Dec 2024): Initial release with multi-survey integration, spectroscopic analysis, BPT classification, and advanced image enhancement features
 - **v1.1** (Jan 2025): Added interactive image viewer with Plotly, full-resolution downloads, HST/ESO archive integration, memory optimization, and enhanced download capabilities across all surveys
 - **v1.2** (Jan 2026): **JWST Integration** - Added complete James Webb Space Telescope support with dedicated module, preview images, instrument filtering, and famous targets database ⭐ NEW!
+- **v1.2.1** (Jan 11, 2026): **i2d Image Filtering** - HST/JWST now show only i2d (drizzled) images, filtering out intermediate calibration products (_cal, _uncal, _rate) for cleaner, professional display of final science-ready images
 
 ---
 

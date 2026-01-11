@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 import gc
+import os
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -1558,7 +1559,7 @@ with survey_tabs[5]:
     st.markdown("---")
     st.markdown("**Search Parameters:**")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         jwst_radius = st.slider(
             "Search Radius (arcsec)",
@@ -1579,7 +1580,17 @@ with survey_tabs[5]:
             help="Select specific JWST instrument"
         )
     
+    col3, col4 = st.columns(2)
     with col3:
+        jwst_max_obs = st.selectbox(
+            "Max Observations",
+            options=[3, 5, 10, 15, 20],
+            index=0,  # Default to 3
+            key="jwst_max_obs",
+            help="Maximum number of observations to fetch"
+        )
+    
+    with col4:
         jwst_images_per_obs = st.selectbox(
             "Images per Observation",
             options=[1, 2, 3, 4, 5, 10],
@@ -1665,10 +1676,12 @@ with survey_tabs[5]:
             - **Preview Images**: Fast loading, standard resolution (good for quick inspection)
             - **HD Images**: Full resolution TIFF/PNG/high-res JPEG (best quality, larger files)
             
-            **Tip:** Use the "Images per Observation" dropdown above to control how many images to display per observation.
+            **Tip:** Use the dropdowns above to control:
+            - **Max Observations**: 3, 5, 10, 15, 20 (default: 3)
+            - **Images per Observation**: 1-10 (default: 3)
             """)
             
-            # Image quality selection
+            # Image quality selection - 2 buttons
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("📷 Load Preview Images", key="load_jwst_images", use_container_width=True):
@@ -1682,11 +1695,14 @@ with survey_tabs[5]:
                                 
                                 params = st.session_state.jwst_search_params
                                 
+                                # Get max_obs from user selection
+                                max_obs = st.session_state.get('jwst_max_obs', 3)
+                                
                                 images = get_jwst_preview_images(
                                     ra=params['ra'],
                                     dec=params['dec'],
                                     radius=params['radius'],
-                                    max_images=10,  # Show 10 images
+                                    max_images=max_obs,
                                     instrument=params.get('instrument')
                                 )
                                 
@@ -1708,14 +1724,15 @@ with survey_tabs[5]:
                                 
                                 params = st.session_state.jwst_search_params
                                 
-                                # Get images_per_obs from user selection
+                                # Get user selections
                                 images_per_obs = st.session_state.get('jwst_images_per_obs', 3)
+                                max_obs = st.session_state.get('jwst_max_obs', 3)
                                 
                                 hd_images = get_jwst_full_resolution_images(
                                     ra=params['ra'],
                                     dec=params['dec'],
                                     radius=params['radius'],
-                                    max_images=10,
+                                    max_images=max_obs,
                                     instrument=params.get('instrument'),
                                     size_preference='largest',
                                     images_per_observation=images_per_obs

@@ -11,6 +11,9 @@ from astroquery.mast import Observations
 import requests
 from io import BytesIO
 from PIL import Image
+import os
+from pathlib import Path
+import zipfile
 
 
 def fetch_jwst_observations(
@@ -178,7 +181,12 @@ def get_jwst_preview_images(
                         product_type == 'PREVIEW'
                     )
                     
+                    # Filter: Only keep i2d images (drizzled combined images)
                     if is_preview:
+                        # Only accept i2d files (final drizzled products)
+                        if '_i2d' not in dataURI_lower:
+                            continue
+                        
                         download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
                         preview_urls.append(download_url)
                 
@@ -382,7 +390,12 @@ def get_jwst_preview_from_obs_id(obs_id: str, timeout: int = 20) -> Optional[Dic
                     if img_type == 'unknown':
                         img_type = 'Preview image'
                 
+                # Filter: Only keep i2d images (drizzled combined images)
                 if is_image:
+                    # Only accept i2d files (final drizzled products)
+                    if '_i2d' not in dataURI_lower:
+                        continue
+                    
                     download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
                     preview_images.append({
                         'url': download_url,
@@ -606,6 +619,11 @@ def get_jwst_full_resolution_images(
                     
                     dataURI_lower = dataURI.lower()
                     
+                    # Filter: Only keep i2d images (drizzled combined images)
+                    # Only accept i2d files (final drizzled products)
+                    if '_i2d' not in dataURI_lower:
+                        continue
+                    
                     # HIGH PRIORITY: Full resolution formats
                     if '.tif' in dataURI_lower or '.tiff' in dataURI_lower:
                         quality = 'TIFF (Full Resolution)'
@@ -678,3 +696,195 @@ def get_jwst_full_resolution_images(
     except Exception as e:
         print(f"Error getting JWST full resolution images: {e}")
         return None
+
+
+def download_all_jwst_images(
+    ra: float,
+    dec: float,
+    radius: float = 5.0,
+    max_observations: int = 10,
+    instrument: Optional[str] = None,
+    download_dir: str = "jwst_downloads",
+    target_name: str = "target"
+) -> Dict:
+    """
+    Download ALL available JWST images (no limits) to local directory
+    
+    Parameters
+    ----------
+    ra : float
+        Right Ascension in degrees
+    dec : float
+        Declination in degrees
+    radius : float, optional
+        Search radius in arcseconds
+    max_observations : int, optional
+        Maximum number of observations to download from
+    instrument : str, optional
+        Specific instrument filter
+    download_dir : str, optional
+        Directory to save images (default: "jwst_downloads")
+    target_name : str, optional
+        Target name for organizing files
+    
+    Returns
+    -------
+    dict
+        Summary with download statistics and zip file path
+    """
+    try:
+        import time
+        
+        # Create download directory
+        base_dir = Path(download_dir)
+        target_dir = base_dir / target_name.replace(' ', '_')
+        target_dir.mkdir(parents=True, exist_ok=True)
+        
+        coord = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs')
+        
+        # Query MAST for JWST observations
+        query_params = {
+            'coordinates': coord,
+            'radius': radius*u.arcsec,
+            'obs_collection': 'JWST',
+            'dataproduct_type': 'image'
+        }
+        
+        if instrument is not None:
+            query_params['instrument_name'] = instrument.upper()
+        
+        obs_table = Observations.query_criteria(**query_params)
+        
+        if obs_table is None or len(obs_table) == 0:
+            return {
+                'success': False,
+                'message': 'No observations found',
+                'total_downloaded': 0
+            }
+        
+        # Limit observations if needed
+        if len(obs_table) > max_observations:
+            obs_table = obs_table[:max_observations]
+        
+        total_downloaded = 0
+        total_size_bytes = 0
+        failed_downloads = 0
+        download_summary = []
+        
+        print(f"Found {len(obs_table)} observations. Starting download...")
+        
+        for obs_idx, obs in enumerate(obs_table):
+            obs_id = obs.get('obs_id', obs.get('obsid', f'obs_{obs_idx}'))
+            instrument_name = obs.get('instrument_name', 'Unknown')
+            
+            print(f"\nProcessing observation {obs_idx+1}/{len(obs_table)}: {obs_id}")
+            
+            try:
+                # Get all products for this observation
+                products = Observations.get_product_list(obs)
+                
+                # Create observation subdirectory
+                obs_dir = target_dir / f"{obs_id}"
+                obs_dir.mkdir(exist_ok=True)
+                
+                obs_downloaded = 0
+                obs_size = 0
+                
+                # Download ALL image products (no filtering by size or type)
+                for product in products:
+                    dataURI = product.get('dataURI', '')
+                    size = product.get('size', 0)
+                    
+                    if not dataURI:
+                        continue
+                    
+                    # Check if it's an image file
+                    dataURI_lower = dataURI.lower()
+                    is_image = any(ext in dataURI_lower for ext in ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.gif'])
+                    
+                    if not is_image:
+                        continue
+                    
+                    filename = dataURI.split('/')[-1] if '/' in dataURI else dataURI
+                    filepath = obs_dir / filename
+                    
+                    # Skip if already downloaded
+                    if filepath.exists():
+                        print(f"  ✓ Already exists: {filename}")
+                        obs_downloaded += 1
+                        obs_size += size
+                        continue
+                    
+                    # Download the file
+                    download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
+                    
+                    try:
+                        print(f"  ⬇ Downloading: {filename} ({size/(1024*1024):.2f} MB)")
+                        response = requests.get(download_url, timeout=120, stream=True)
+                        
+                        if response.status_code == 200:
+                            with open(filepath, 'wb') as f:
+                                for chunk in response.iter_content(chunk_size=8192):
+                                    f.write(chunk)
+                            
+                            obs_downloaded += 1
+                            obs_size += size
+                            print(f"    ✓ Downloaded successfully")
+                        else:
+                            print(f"    ✗ Failed (HTTP {response.status_code})")
+                            failed_downloads += 1
+                    
+                    except Exception as e:
+                        print(f"    ✗ Error: {e}")
+                        failed_downloads += 1
+                    
+                    # Small delay to avoid overwhelming server
+                    time.sleep(0.2)
+                
+                total_downloaded += obs_downloaded
+                total_size_bytes += obs_size
+                
+                download_summary.append({
+                    'obs_id': obs_id,
+                    'instrument': instrument_name,
+                    'images_downloaded': obs_downloaded,
+                    'size_mb': round(obs_size / (1024*1024), 2)
+                })
+                
+                print(f"  ✓ Observation complete: {obs_downloaded} images, {obs_size/(1024*1024):.2f} MB")
+                
+            except Exception as e:
+                print(f"  ✗ Error processing observation: {e}")
+                continue
+        
+        # Create a zip file
+        zip_path = base_dir / f"{target_name.replace(' ', '_')}_jwst_images.zip"
+        print(f"\n📦 Creating zip file: {zip_path}")
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(target_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    arcname = file_path.relative_to(base_dir)
+                    zipf.write(file_path, arcname)
+        
+        zip_size_mb = zip_path.stat().st_size / (1024*1024)
+        
+        return {
+            'success': True,
+            'total_observations': len(obs_table),
+            'total_downloaded': total_downloaded,
+            'failed_downloads': failed_downloads,
+            'total_size_mb': round(total_size_bytes / (1024*1024), 2),
+            'download_dir': str(target_dir),
+            'zip_file': str(zip_path),
+            'zip_size_mb': round(zip_size_mb, 2),
+            'summary': download_summary
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f'Error: {e}',
+            'total_downloaded': 0
+        }
