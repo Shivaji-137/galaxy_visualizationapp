@@ -352,12 +352,7 @@ def get_mast_hst_images(
                         product_type == 'PREVIEW'
                     )
                     
-                    # Filter: Only keep i2d images (drizzled combined images)
                     if is_preview:
-                        # Only accept i2d files (final drizzled products)
-                        if '_i2d' not in dataURI_lower:
-                            continue
-                        
                         download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
                         preview_urls.append(download_url)
                 
@@ -584,12 +579,7 @@ def get_jwst_preview_images(
                         product_type == 'PREVIEW'
                     )
                     
-                    # Filter: Only keep i2d images (drizzled combined images)
                     if is_preview:
-                        # Only accept i2d files (final drizzled products)
-                        if '_i2d' not in dataURI_lower:
-                            continue
-                        
                         download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
                         preview_urls.append(download_url)
                 
@@ -816,12 +806,7 @@ def get_hst_preview_from_obs_id(obs_id: str, timeout: int = 20) -> Optional[Dict
                             if img_type == 'unknown':
                                 img_type = 'Preview image'
                         
-                        # Filter: Only keep i2d images (drizzled combined images)
                         if is_image:
-                            # Only accept i2d files (final drizzled products)
-                            if '_i2d' not in dataURI_lower:
-                                continue
-                            
                             download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
                             preview_images.append({
                                 'url': download_url,
@@ -918,12 +903,7 @@ def get_jwst_preview_from_obs_id(obs_id: str, timeout: int = 20) -> Optional[Dic
                     if img_type == 'unknown':
                         img_type = 'Preview image'
                 
-                # Filter: Only keep i2d images (drizzled combined images)
                 if is_image:
-                    # Only accept i2d files (final drizzled products)
-                    if '_i2d' not in dataURI_lower:
-                        continue
-                    
                     download_url = f"https://mast.stsci.edu/api/v0.1/Download/file?uri={dataURI}"
                     preview_images.append({
                         'url': download_url,
